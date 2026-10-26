@@ -24,6 +24,17 @@ export interface PublicUser {
   avatarUrl: string | null;
 }
 
+/** Another user as the API exposes them (no email). */
+export interface UserSummary {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface UserListItem extends UserSummary {
+  isOnline: boolean;
+}
+
 export interface RoomDto {
   id: string;
   kind: "dm" | "group";
@@ -162,13 +173,17 @@ class ApiClient {
 
   // Users
   async getUser(id: string) {
-    const response = await this.request<{ user: PublicUser }>(`/api/v1/users/${id}`, "GET");
+    const response = await this.request<{ user: UserSummary }>(`/api/v1/users/${id}`, "GET");
     return response.user;
   }
 
-  async listUsers() {
-    const response = await this.request<{ users: (PublicUser & { isOnline: boolean })[] }>("/api/v1/users", "GET");
-    return response.users;
+  /** `q` matches display names, or an exact email. Pass `nextCursor` back as `cursor` for the next page. */
+  listUsers(params: { q?: string; cursor?: string; limit?: number } = {}) {
+    const query = new URLSearchParams();
+    if (params.q) query.set("q", params.q);
+    if (params.cursor) query.set("cursor", params.cursor);
+    if (params.limit) query.set("limit", String(params.limit));
+    return this.request<{ users: UserListItem[]; nextCursor: string | null }>(`/api/v1/users?${query}`, "GET");
   }
 
   // Rooms
