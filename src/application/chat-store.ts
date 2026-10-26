@@ -64,6 +64,8 @@ export class ChatStore extends Store<ChatState> {
   private readonly lastTypingSent = new Map<string, number>();
   /** Message ids already counted as unread, so a duplicated event doesn't count twice. */
   private readonly countedUnread = new Map<string, Set<string>>();
+  /** Last message id acknowledged with chat.read, per room (avoids resending the same one). */
+  private readonly lastReadSent = new Map<string, string>();
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly deps: Deps, options: Options = {}) {
@@ -96,8 +98,15 @@ export class ChatStore extends Store<ChatState> {
 
   async reloadRooms(): Promise<void> {
     try {
-      this.setRooms(sortRoomsByActivity(await this.deps.rooms.list()));
-      this.setState({ roomsLoaded: true });
+      const rooms = await this.deps.rooms.list();
+      this.setRooms(sortRoomsByActivity(rooms));
+      // The server's count is authoritative; the open room is being read right now.
+      this.countedUnread.clear();
+      const selected = this.getSnapshot().selectedRoomId;
+      const unread = Object.fromEntries(
+        rooms.filter((r) => r.unreadCount > 0 && r.id !== selected).map((r) => [r.id, r.unreadCount]),
+      );
+      this.setState({ roomsLoaded: true, unread });
     } catch (err) {
       this.fail(err, "No se pudieron cargar las conversaciones");
     }
@@ -118,6 +127,7 @@ export class ChatStore extends Store<ChatState> {
       this.getSnapshot().messages[roomId] ? Promise.resolve() : this.loadPage(roomId),
     ]);
     if (detail && this.getSnapshot().selectedRoomId === roomId) this.setState({ selectedRoom: detail });
+    this.markRead(roomId);
   }
 
   /** Loads the page of messages older than the oldest one loaded. */
@@ -184,7 +194,21 @@ export class ChatStore extends Store<ChatState> {
   private async resync(): Promise<void> {
     await this.reloadRooms();
     const roomId = this.getSnapshot().selectedRoomId;
-    if (roomId && this.getSnapshot().messages[roomId]) await this.loadPage(roomId, undefined, true);
+    if (roomId && this.getSnapshot().messages[roomId]) {
+      await this.loadPage(roomId, undefined, true);
+      this.markRead(roomId);
+    }
+  }
+
+  /** Persists that the open room has been read up to its newest loaded message. */
+  private markRead(roomId: string): void {
+    const last = this.getSnapshot().messages[roomId]?.at(-1)?.id;
+    const sent = this.lastReadSent.get(roomId);
+    if (!last || (sent && last <= sent) || this.getSnapshot().connection !== "open") return;
+    this.lastReadSent.set(roomId, last);
+    this.deps.realtime.request("chat.read", { roomId, messageId: last }).catch(() => {
+      if (this.lastReadSent.get(roomId) === last) this.lastReadSent.delete(roomId); // retry next time
+    });
   }
 
   /** `refresh` merges the newest page into what is loaded instead of starting the history. */
@@ -237,7 +261,9 @@ export class ChatStore extends Store<ChatState> {
           messages: s.messages[m.roomId] ? { ...s.messages, [m.roomId]: upsertMessage(s.messages[m.roomId]!, m) } : s.messages,
           typing: s.typing[m.roomId] ? { ...s.typing, [m.roomId]: s.typing[m.roomId]!.filter((u) => u !== m.senderId) } : s.typing,
         }));
-        if (m.senderId !== me && m.roomId !== this.getSnapshot().selectedRoomId) this.countUnread(m);
+        if (m.senderId === me) break;
+        if (m.roomId === this.getSnapshot().selectedRoomId) this.markRead(m.roomId);
+        else this.countUnread(m);
         break;
       }
       case "message.edited": {
@@ -292,7 +318,12 @@ export class ChatStore extends Store<ChatState> {
         this.setState((s) => ({ presence: { ...s.presence, [event.payload.userId]: event.type === "presence.online" } }));
         break;
       case "message.read":
-        break; // read receipts are not shown yet
+        // Read in another tab or device of mine: clear the badge here too.
+        if (event.payload.userId === me) {
+          this.countedUnread.delete(event.payload.roomId);
+          this.setState((s) => (s.unread[event.payload.roomId] ? { unread: without(s.unread, event.payload.roomId) } : {}));
+        }
+        break;
     }
   }
 

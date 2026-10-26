@@ -80,6 +80,43 @@ describe("ChatStore", () => {
     expect(store.getSnapshot().unread[older]).toBeUndefined();
   });
 
+  test("unread comes from the server; reading the open room is persisted with chat.read", async () => {
+    const { store, realtime, roomsRepo, messages, rooms } = setup();
+    const [a, b] = [rooms[0]!.id, rooms[1]!.id];
+    roomsRepo.unreadCounts.set(a, 3);
+    const msgs = [message(a), message(a)];
+    messages.pages.set(a, msgs);
+    realtime.status("open");
+    await flush();
+    expect(store.getSnapshot().unread).toEqual({ [a]: 3 });
+
+    await store.selectRoom(a);
+    expect(store.getSnapshot().unread[a]).toBeUndefined();
+    const reads = () => realtime.requests.filter((r) => r.type === "chat.read").map((r) => r.payload);
+    expect(reads()).toEqual([{ roomId: a, messageId: msgs[1]!.id }]);
+
+    // A new message from someone else in the open room is acknowledged; my own is not.
+    const incoming = message(a);
+    realtime.emit({ type: "message.created", payload: incoming });
+    const mine = message(a, { senderId: ME });
+    realtime.emit({ type: "message.created", payload: mine });
+    expect(reads()).toEqual([{ roomId: a, messageId: msgs[1]!.id }, { roomId: a, messageId: incoming.id }]);
+
+    // Reconnect: the open room isn't re-badged; the pointer catches up once, never twice.
+    roomsRepo.unreadCounts.set(b, 1);
+    for (let i = 0; i < 2; i++) {
+      realtime.status("closed");
+      realtime.status("open");
+      await flush();
+    }
+    expect(store.getSnapshot().unread).toEqual({ [b]: 1 });
+    expect(reads().slice(2)).toEqual([{ roomId: a, messageId: mine.id }]);
+
+    // Read on another device of mine clears the badge here.
+    realtime.emit({ type: "message.read", payload: { roomId: b, userId: ME, messageId: incoming.id } });
+    expect(store.getSnapshot().unread[b]).toBeUndefined();
+  });
+
   test("room.added / room.removed keep the list and subscriptions current", async () => {
     const { store, realtime, rooms } = setup();
     realtime.status("open");

@@ -14,6 +14,13 @@ export const RoomSchema = z.strictObject({
 });
 export type Room = z.infer<typeof RoomSchema>;
 
+/** GET /rooms item: the room plus the requester's own read state. */
+export const RoomListItemSchema = RoomSchema.extend({
+  unreadCount: z.number().int().min(0),
+  lastReadMessageId: Id.nullable(),
+});
+export type RoomListItem = z.infer<typeof RoomListItemSchema>;
+
 export const RoomMemberSchema = z.strictObject({
   userId: Id,
   role: RoomRoleSchema,
@@ -53,5 +60,5 @@ export const RemoveMemberSchema = z.object({
 
 export const RoomResponseSchema = z.strictObject({ room: RoomSchema });
 export const RoomDetailResponseSchema = z.strictObject({ room: RoomWithMembersSchema });
-export const RoomListResponseSchema = z.strictObject({ rooms: z.array(RoomSchema) });
+export const RoomListResponseSchema = z.strictObject({ rooms: z.array(RoomListItemSchema) });
 export const MemberResponseSchema = z.strictObject({ member: RoomMemberSchema });

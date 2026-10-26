@@ -96,9 +96,19 @@ await aChat.send(roomId, "hola carol (e2e)");
 await until(() => (aChat.getSnapshot().messages[roomId] ?? []).some((m) => m.body === "hola carol (e2e)"), "sender sees own message");
 await until(() => (cChat.getSnapshot().unread[roomId] ?? 0) === 1, "recipient unread count");
 
+// "Reload" (fresh store, REST only): the unread count comes from the server.
+const reloadedUnread = async () => {
+  const fresh = carol.chat(carolId);
+  await fresh.reloadRooms();
+  return fresh.getSnapshot().unread[roomId] ?? 0;
+};
+check((await reloadedUnread()) === 1, "unread count survives a reload");
+
 await cChat.selectRoom(roomId);
 const msg = cChat.getSnapshot().messages[roomId]!.find((m) => m.body === "hola carol (e2e)")!;
 check(Boolean(msg) && !cChat.getSnapshot().unread[roomId], "open room loads history and clears unread");
+await Bun.sleep(200); // chat.read ack
+check((await reloadedUnread()) === 0, "reading is persisted (chat.read)");
 
 cChat.notifyTyping(roomId);
 await until(() => (aChat.getSnapshot().typing[roomId] ?? []).includes(carolId), "typing indicator");

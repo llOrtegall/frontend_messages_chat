@@ -2,6 +2,7 @@ import type {
   CurrentUser,
   Message,
   Room,
+  RoomListItem,
   RoomWithMembers,
   ServerEvent,
   UserListItem,
@@ -26,7 +27,8 @@ export interface UserDirectory {
 }
 
 export interface RoomRepository {
-  list(): Promise<Room[]>;
+  /** My rooms with my read state. */
+  list(): Promise<RoomListItem[]>;
   get(roomId: string): Promise<RoomWithMembers>;
   openDirect(targetUserId: string): Promise<Room>;
   createGroup(name: string, memberIds: string[]): Promise<Room>;

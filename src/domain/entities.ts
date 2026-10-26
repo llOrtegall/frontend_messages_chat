@@ -5,6 +5,7 @@ export type {
   UserSummary,
   UserListItem,
   Room,
+  RoomListItem,
   RoomMember,
   RoomWithMembers,
   Message,

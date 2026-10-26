@@ -45,7 +45,8 @@ export class FakeRealtime implements RealtimeGateway {
 export class FakeRooms implements RoomRepository {
   constructor(public rooms: Room[] = []) {}
   details = new Map<string, RoomWithMembers>();
-  async list() { return this.rooms; }
+  unreadCounts = new Map<string, number>();
+  async list() { return this.rooms.map((r) => ({ ...r, unreadCount: this.unreadCounts.get(r.id) ?? 0, lastReadMessageId: null })); }
   async get(roomId: string) {
     const d = this.details.get(roomId);
     if (d) return d;
