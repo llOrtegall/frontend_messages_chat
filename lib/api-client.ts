@@ -5,9 +5,10 @@ export interface ApiError {
   detail?: string;
 }
 
+// The refresh token never reaches JS: the backend keeps it in an HttpOnly cookie
+// scoped to /api/v1/auth, sent because every request uses credentials: "include".
 export interface AuthResponse {
   accessToken: string;
-  refreshToken: string;
   user: {
     id: string;
     email: string;
@@ -56,22 +57,15 @@ export interface MessageDto {
 
 class ApiClient {
   private accessToken: string | null = null;
-  private refreshToken: string | null = null;
   private pendingRefresh: Promise<boolean> | null = null;
-  private onTokensRefreshed?: (tokens: { accessToken: string; refreshToken: string }) => void;
+  private onTokensRefreshed?: (accessToken: string) => void;
   private onAuthExpired?: () => void;
 
-  setTokens(accessToken: string | null, refreshToken: string | null) {
-    this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
-  }
-
-  // kept for backwards compat with existing callers
   setAccessToken(token: string | null) {
     this.accessToken = token;
   }
 
-  setOnTokensRefreshed(cb: (tokens: { accessToken: string; refreshToken: string }) => void) {
+  setOnTokensRefreshed(cb: (accessToken: string) => void) {
     this.onTokensRefreshed = cb;
   }
 
@@ -79,26 +73,26 @@ class ApiClient {
     this.onAuthExpired = cb;
   }
 
-  private async tryRefresh(): Promise<boolean> {
-    if (!this.refreshToken) return false;
+  /**
+   * Exchanges the refresh cookie for a new access token. Single-flight: the backend revokes the
+   * whole session if a rotated refresh token is reused, so concurrent callers share one request.
+   */
+  refreshSession(): Promise<boolean> {
     if (this.pendingRefresh) return this.pendingRefresh;
 
     this.pendingRefresh = (async (): Promise<boolean> => {
       try {
         const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: this.refreshToken }),
+          credentials: "include",
         });
         if (!res.ok) throw new Error("Refresh failed");
-        const data = (await res.json()) as AuthResponse;
+        const data = (await res.json()) as { accessToken: string };
         this.accessToken = data.accessToken;
-        this.refreshToken = data.refreshToken;
-        this.onTokensRefreshed?.({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+        this.onTokensRefreshed?.(data.accessToken);
         return true;
       } catch {
         this.accessToken = null;
-        this.refreshToken = null;
         this.onAuthExpired?.();
         return false;
       }
@@ -114,6 +108,7 @@ class ApiClient {
     if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
     return fetch(`${API_BASE}${path}`, {
       method,
+      credentials: "include",
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
@@ -123,7 +118,7 @@ class ApiClient {
     let res = await this.doFetch(path, method, body);
 
     if (res.status === 401) {
-      const refreshed = await this.tryRefresh();
+      const refreshed = await this.refreshSession();
       if (refreshed) {
         res = await this.doFetch(path, method, body);
       }

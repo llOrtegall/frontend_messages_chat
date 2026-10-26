@@ -36,16 +36,19 @@ export const ConfirmPasswordResetSchema = z.object({
 
 // Responses
 
+// Browsers (requests from an allowed Origin, or `X-Client-Type: web`) receive the refresh token
+// only as the HttpOnly `rt` cookie, so `refreshToken` is absent for them; other clients get it here.
+
 export const AuthResponseSchema = z.strictObject({
   user: PublicUserSchema,
   accessToken: z.string(),
-  refreshToken: z.string(),
+  refreshToken: z.string().optional(),
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 export const RefreshResponseSchema = z.strictObject({
   accessToken: z.string(),
-  refreshToken: z.string(),
+  refreshToken: z.string().optional(),
 });
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
 

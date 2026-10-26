@@ -14,16 +14,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function persistTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem("accessToken", accessToken);
-  localStorage.setItem("refreshToken", refreshToken);
-}
-
-function clearTokens() {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -32,36 +22,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Wire up token refresh callbacks once on mount.
     // setUser/setAccessToken are stable React dispatch functions.
-    apiClient.setOnTokensRefreshed(({ accessToken: at, refreshToken: rt }) => {
-      persistTokens(at, rt);
-      setAccessToken(at);
-    });
+    apiClient.setOnTokensRefreshed(setAccessToken);
 
     apiClient.setOnAuthExpired(() => {
-      clearTokens();
       setUser(null);
       setAccessToken(null);
     });
   }, []);
 
+  // The access token lives only in memory; on load, restore the session from the HttpOnly
+  // refresh cookie (no-op 401 when there is none).
   useEffect(() => {
-    const storedAccess = localStorage.getItem("accessToken");
-    const storedRefresh = localStorage.getItem("refreshToken");
-
-    if (!storedAccess) {
-      setLoading(false);
-      return;
-    }
-
-    apiClient.setTokens(storedAccess, storedRefresh);
-    setAccessToken(storedAccess);
-
     apiClient
-      .getMe()
-      .then((u) => setUser(u))
+      .refreshSession()
+      .then((ok) => (ok ? apiClient.getMe().then(setUser) : undefined))
       .catch(() => {
-        clearTokens();
-        apiClient.setTokens(null, null);
+        apiClient.setAccessToken(null);
         setAccessToken(null);
       })
       .finally(() => setLoading(false));
@@ -69,16 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await apiClient.login(email, password);
-    apiClient.setTokens(response.accessToken, response.refreshToken);
-    persistTokens(response.accessToken, response.refreshToken);
+    apiClient.setAccessToken(response.accessToken);
     setAccessToken(response.accessToken);
     setUser(response.user);
   };
 
   const register = async (email: string, password: string, displayName: string) => {
     const response = await apiClient.register(email, password, displayName);
-    apiClient.setTokens(response.accessToken, response.refreshToken);
-    persistTokens(response.accessToken, response.refreshToken);
+    apiClient.setAccessToken(response.accessToken);
     setAccessToken(response.accessToken);
     setUser(response.user);
   };
@@ -89,8 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore — clear session regardless
     }
-    clearTokens();
-    apiClient.setTokens(null, null);
+    apiClient.setAccessToken(null);
     setAccessToken(null);
     setUser(null);
   };
