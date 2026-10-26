@@ -42,3 +42,7 @@ next-env.d.ts
 
 # backend checkout used by CI for contracts:check
 /.backend
+
+# playwright
+/test-results/
+/playwright-report/

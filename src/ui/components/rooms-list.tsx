@@ -36,13 +36,13 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
                     onClick={() => void store.selectRoom(room.id)}
                     aria-current={selected ? "true" : undefined}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition ${
-                      selected ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-200"
+                      selected ? "bg-blue-700 text-white" : "hover:bg-slate-800 text-slate-200"
                     }`}
                   >
                     <span className="flex items-center gap-2">
                       <span
                         className={`shrink-0 text-[9px] font-bold px-1 py-0.5 rounded ${
-                          room.kind === "dm" ? "bg-blue-900/60 text-blue-400" : "bg-purple-900/60 text-purple-400"
+                          room.kind === "dm" ? "bg-blue-950 text-blue-200" : "bg-purple-950 text-purple-200"
                         }`}
                       >
                         {room.kind === "dm" ? "DM" : "G"}

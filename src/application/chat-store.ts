@@ -149,6 +149,8 @@ export class ChatStore extends Store<ChatState> {
   async send(roomId: string, body: string, file?: Blob): Promise<boolean> {
     const text = body.trim();
     if (!text && !file) return false;
+    // Recipients drop my typing indicator when the message arrives: typing again must re-notify.
+    this.lastTypingSent.delete(roomId);
     return this.attempt(async () => {
       const attachmentKey = file ? await this.deps.attachments.upload(file) : undefined;
       await this.deps.realtime.request("chat.send", { roomId, body: text, attachmentKey, clientMessageId: crypto.randomUUID() });

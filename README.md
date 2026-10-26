@@ -32,6 +32,24 @@ bun dev            # http://localhost:3001 — usuarios de prueba: alice/bob/car
 | `bun run contracts:sync` | Copia `src/contracts/` desde `../backend_messages_chat` (o `$CONTRACTS_BACKEND_DIR`) |
 | `bun run contracts:check` | Falla si `src/contracts/` se editó a mano o difiere del backend |
 | `bun scripts/dev/e2e-smoke.ts` | Prueba E2E de las capas de aplicación e infraestructura contra el backend en marcha |
+| `bun run e2e` | Playwright (Chromium): flujos de 2 usuarios en el navegador contra el backend real |
+
+### E2E con Playwright
+
+`e2e/` abre un contexto de navegador por usuario (registrados por API en cada test, sin depender del seed) y cubre
+login/logout, chat en vivo (no leídos, typing, edición, borrado, recarga), adjuntos al bucket, grupos (roles, salir)
+y una pasada de axe (WCAG A/AA, sin violaciones serias). Requisitos:
+
+1. Backend en marcha con su stack (`docker compose -f docker-compose.dev.yml up -d`) y los límites por IP relajados,
+   porque todos los navegadores comparten IP:
+   `RATE_LIMIT_LOGIN_MAX=1000 RATE_LIMIT_REGISTER_MAX=1000 RATE_LIMIT_REFRESH_MAX=1000 bun run dev`.
+2. `bun run e2e` (arranca `bun dev` si no hay frontend en :3001). La primera vez: `bunx playwright install chromium`
+   y, en Linux, las dependencias del sistema (`sudo bunx playwright install-deps chromium`). Sin sudo (p. ej. WSL),
+   con la imagen oficial:
+   `docker run --rm --network host --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:$PWD -w $PWD mcr.microsoft.com/playwright:v1.64.1-noble npx playwright test`
+
+En CI lo ejecuta `.github/workflows/e2e.yml` (stack del backend con su compose, build de producción, trazas como
+artefacto si falla).
 
 ## Arquitectura (hexagonal)
 

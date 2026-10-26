@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "contracts:sync": "bun scripts/sync-contracts.ts sync",
     "contracts:check": "bun scripts/sync-contracts.ts check",
-    "test": "bun test tests"
+    "test": "bun test tests",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "next": "^16.4.3",
@@ -19,6 +20,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/bun": "^1.4.4",
     "@types/node": "^24",

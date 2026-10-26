@@ -173,6 +173,9 @@ describe("ChatStore", () => {
     await Bun.sleep(60);
     store.notifyTyping(r);
     expect(realtime.notifications).toHaveLength(2);
+    await store.send(r, "x"); // sending resets the throttle
+    store.notifyTyping(r);
+    expect(realtime.notifications).toHaveLength(3);
   });
 
   test("send trims, skips empty bodies and reports failures in state", async () => {
