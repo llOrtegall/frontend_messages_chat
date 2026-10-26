@@ -33,20 +33,21 @@ function browserFetch() {
 function client(email: string) {
   const http = new HttpClient(API, browserFetch());
   const auth = new RestAuthGateway(http);
-  const session = new SessionStore(auth);
+  // The PUT goes to the bucket: Origin (CORS) but no API cookies.
+  const attachments = new S3AttachmentUploader(http, (url, init) =>
+    fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } }),
+  );
+  const session = new SessionStore(auth, attachments);
   const users = new RestUserDirectory(http);
   const chat = (userId: string) =>
     new ChatStore({
       currentUserId: userId,
       rooms: new RestRoomRepository(http),
       messages: new RestMessageRepository(http),
-      // The PUT goes to the bucket: Origin (CORS) but no API cookies.
-      attachments: new S3AttachmentUploader(http, (url, init) =>
-        fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } }),
-      ),
+      attachments,
       realtime: new WsRealtimeGateway({ url: API, issueTicket: () => auth.issueWsTicket() }),
     });
-  return { email, http, auth, session, users, chat };
+  return { email, http, auth, session, users, chat, attachments };
 }
 
 let failures = 0;
@@ -72,7 +73,7 @@ check(alice.session.getSnapshot().status === "authenticated", "login (cookie ses
 
 // "Page reload": drop the in-memory access token and restore from the HttpOnly cookie only.
 alice.http.setAccessToken(null);
-const reloaded = new SessionStore(alice.auth);
+const reloaded = new SessionStore(alice.auth, alice.attachments);
 await reloaded.restore();
 check(reloaded.getSnapshot().user?.email === alice.email, "restore session from refresh cookie");
 
@@ -150,6 +151,15 @@ await aChat.deleteRoom(groupId);
 
 await aChat.deleteRoom(roomId);
 await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === roomId) && cChat.getSnapshot().selectedRoomId === null, "room deletion closes it for the other member");
+
+const name = alice.session.getSnapshot().user!.displayName;
+await alice.session.updateProfile({ displayName: `${name} (e2e)`, avatar: png });
+const avatarUrl = alice.session.getSnapshot().user!.avatarUrl;
+check(Boolean(avatarUrl) && (await fetch(avatarUrl!)).ok, "profile: uploaded avatar is served");
+const seen = (await carol.users.search({ query: name })).users.find((u) => u.id === aliceId);
+check(seen?.avatarUrl === avatarUrl && seen?.displayName === `${name} (e2e)`, "profile: others see the new name and avatar");
+await alice.session.updateProfile({ displayName: name, avatar: null });
+check(alice.session.getSnapshot().user!.avatarUrl === null, "profile: avatar removed");
 
 aChat.stop();
 cChat.stop();

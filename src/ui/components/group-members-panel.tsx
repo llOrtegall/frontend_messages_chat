@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { RoomMember, RoomWithMembers } from "../../domain/entities.ts";
 import { canAddMembers, canChangeRole, canLeave, canRemoveMember } from "../../domain/rules.ts";
 import { useChat, useSession } from "../providers.tsx";
+import { Avatar } from "./avatar.tsx";
 import { UserPicker } from "./user-picker.tsx";
 
 const ROLE_LABEL: Record<RoomMember["role"], string> = { owner: "propietario", admin: "admin", member: "miembro" };
@@ -46,6 +47,7 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
                 className={`w-2 h-2 rounded-full ${presence[m.userId] ? "bg-green-500" : "bg-slate-600"}`}
                 aria-label={presence[m.userId] ? "en línea" : "desconectado"}
               />
+              <Avatar name={m.displayName} url={m.avatarUrl} size="sm" />
               <span className="flex-1 truncate">
                 {m.displayName}
                 {m.userId === user.id && <span className="text-slate-500"> (tú)</span>}

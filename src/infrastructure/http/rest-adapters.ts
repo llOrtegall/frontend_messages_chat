@@ -50,6 +50,10 @@ export class RestAuthGateway implements AuthGateway {
     return (await this.http.request("GET", "/api/v1/auth/me", UserResponseSchema)).user;
   }
 
+  async updateProfile(changes: { displayName?: string; avatarKey?: string | null }) {
+    return (await this.http.request("PATCH", "/api/v1/users/me", UserResponseSchema, { body: changes })).user;
+  }
+
   async verifyEmail(token: string) {
     await this.http.request("POST", "/api/v1/auth/verify-email/confirm", null, { body: { token }, refreshOn401: false });
   }

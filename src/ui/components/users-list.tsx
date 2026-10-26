@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useChat, useSession } from "../providers.tsx";
 import { useUserSearch } from "../use-user-search.ts";
+import { Avatar } from "./avatar.tsx";
 import { errorMessage } from "../../application/store.ts";
 
 export function UsersList({ onOpened }: { onOpened: () => void }) {
@@ -66,6 +67,7 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-slate-800 text-left disabled:opacity-60"
                   title="Abrir mensaje directo"
                 >
+                  <Avatar name={u.displayName} url={u.avatarUrl} />
                   <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(u) ? "bg-green-400" : "bg-slate-600"}`} aria-hidden />
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-medium text-slate-200 truncate">{u.displayName}</span>

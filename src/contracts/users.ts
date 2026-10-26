@@ -25,7 +25,8 @@ export type UserListItem = z.infer<typeof UserListItemSchema>;
 
 export const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(64).trim().optional(),
-  avatarUrl: z.url().max(512).nullable().optional(),
+  /** An image uploaded via /attachments/presign (the server derives avatarUrl); null removes it. */
+  avatarKey: z.string().max(512).nullable().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
 

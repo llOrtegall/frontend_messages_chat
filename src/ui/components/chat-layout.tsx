@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useChat, useSession } from "../providers.tsx";
 import { ChatView } from "./chat-view.tsx";
+import { Avatar } from "./avatar.tsx";
 import { VerifyEmailBanner } from "./email-flows.tsx";
+import { ProfileDialog } from "./profile-dialog.tsx";
 import { NewConversationModal } from "./new-conversation-modal.tsx";
 import { RoomsList } from "./rooms-list.tsx";
 import { UsersList } from "./users-list.tsx";
@@ -12,9 +14,10 @@ type Tab = "chats" | "users";
 
 export function ChatLayout() {
   const { selectedRoomId, unread } = useChat();
-  const { store: session } = useSession();
+  const { store: session, user } = useSession();
   const [tab, setTab] = useState<Tab>("chats");
   const [showNew, setShowNew] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const hasUnread = Object.values(unread).some((n) => n > 0);
 
   return (
@@ -43,7 +46,14 @@ export function ChatLayout() {
           {tab === "chats" ? <RoomsList onNewConversation={() => setShowNew(true)} /> : <UsersList onOpened={() => setTab("chats")} />}
         </div>
 
-        <div className="p-3 border-t border-slate-700">
+        <div className="p-3 border-t border-slate-700 space-y-2">
+          {user && (
+            <button onClick={() => setShowProfile(true)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-800 text-left" title="Editar perfil">
+              <Avatar name={user.displayName} url={user.avatarUrl} />
+              <span className="flex-1 min-w-0 truncate text-sm">{user.displayName}</span>
+              <span className="text-xs text-slate-500">Perfil</span>
+            </button>
+          )}
           <button
             onClick={() => void session.logout()}
             className="w-full bg-slate-800 hover:bg-red-900/60 hover:text-red-400 text-slate-400 font-medium py-2 rounded-lg transition text-sm"
@@ -68,6 +78,7 @@ export function ChatLayout() {
       </main>
 
       {showNew && <NewConversationModal onClose={() => setShowNew(false)} />}
+      {showProfile && <ProfileDialog onClose={() => setShowProfile(false)} />}
     </div>
   );
 }

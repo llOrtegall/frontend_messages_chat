@@ -1,5 +1,5 @@
 import type { CurrentUser } from "../domain/entities.ts";
-import type { AuthGateway } from "../domain/ports.ts";
+import type { AttachmentUploader, AuthGateway } from "../domain/ports.ts";
 import { Store } from "./store.ts";
 
 export type SessionState =
@@ -11,7 +11,10 @@ export class SessionStore extends Store<SessionState> {
   private restoring: Promise<void> | null = null;
   private readonly verifying = new Map<string, Promise<void>>();
 
-  constructor(private readonly auth: AuthGateway) {
+  constructor(
+    private readonly auth: AuthGateway,
+    private readonly attachments: AttachmentUploader,
+  ) {
     super({ status: "loading", user: null });
     auth.onExpired(() => this.setState({ status: "anonymous", user: null }));
   }
@@ -39,6 +42,12 @@ export class SessionStore extends Store<SessionState> {
     } finally {
       this.setUser(null);
     }
+  }
+
+  /** `avatar`: a new image file, null to remove it, undefined to keep it. Throws on failure. */
+  async updateProfile({ displayName, avatar }: { displayName?: string; avatar?: Blob | null }): Promise<void> {
+    const avatarKey = avatar ? await this.attachments.upload(avatar) : avatar;
+    this.setUser(await this.auth.updateProfile({ displayName: displayName?.trim(), avatarKey }));
   }
 
   /**

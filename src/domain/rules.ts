@@ -95,6 +95,8 @@ const ATTACHMENT_TYPES = {
 
 /** Value for `<input type="file" accept>`. */
 export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_TYPES).join(",");
+/** Avatars: the image subset. */
+export const AVATAR_ACCEPT = Object.keys(ATTACHMENT_TYPES).filter((t) => t.startsWith("image/")).join(",");
 
 export const isImageAttachment = (meta: Pick<AttachmentMeta, "contentType">) => meta.contentType.startsWith("image/");
 

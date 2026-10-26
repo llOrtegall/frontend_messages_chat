@@ -20,6 +20,8 @@ export interface AuthGateway {
   logout(): Promise<void>;
   /** The signed-in user as the server has it now. */
   me(): Promise<CurrentUser>;
+  /** `avatarKey`: an uploaded image (see AttachmentUploader); null removes the avatar. */
+  updateProfile(changes: { displayName?: string; avatarKey?: string | null }): Promise<CurrentUser>;
   /** Emailed-token flows. The tokens are single use. */
   verifyEmail(token: string): Promise<void>;
   resendVerification(): Promise<void>;

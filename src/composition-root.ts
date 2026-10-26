@@ -19,7 +19,7 @@ export function createContainer(apiUrl: string) {
   const attachments = new S3AttachmentUploader(http);
 
   return {
-    session: new SessionStore(auth),
+    session: new SessionStore(auth, attachments),
     users: new RestUserDirectory(http),
     createChat: (currentUserId: string) =>
       new ChatStore({
