@@ -30,9 +30,9 @@ async function newUser(browser: Browser, label: string): Promise<ChatUser> {
 }
 
 export const test = base.extend<{ users: (...labels: string[]) => Promise<ChatUser[]> }>({
-  users: async ({ browser }, use) => {
+  users: async ({ browser }, provide) => {
     const created: ChatUser[] = [];
-    await use(async (...labels) => {
+    await provide(async (...labels) => {
       const users = await Promise.all(labels.map((l) => newUser(browser, l)));
       created.push(...users);
       return users;
