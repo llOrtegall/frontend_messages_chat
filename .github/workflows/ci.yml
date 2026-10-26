@@ -28,3 +28,9 @@ jobs:
       - run: bun run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3000
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --build-arg NEXT_PUBLIC_API_URL=https://chat.example.com -t chat-web .
