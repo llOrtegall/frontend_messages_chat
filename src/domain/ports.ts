@@ -1,0 +1,53 @@
+import type {
+  CurrentUser,
+  Message,
+  Room,
+  RoomWithMembers,
+  ServerEvent,
+  UserListItem,
+  WsAckPayload,
+  WsRequestPayload,
+  WsRequestType,
+} from "./entities.ts";
+
+/** Session against the backend. The refresh token never reaches the client (HttpOnly cookie). */
+export interface AuthGateway {
+  login(email: string, password: string): Promise<CurrentUser>;
+  register(email: string, password: string, displayName: string): Promise<CurrentUser>;
+  /** Restores the session from the refresh cookie; null when there is none or it expired. */
+  restore(): Promise<CurrentUser | null>;
+  logout(): Promise<void>;
+  /** Called when the session can no longer be refreshed (expired or revoked elsewhere). */
+  onExpired(listener: () => void): () => void;
+}
+
+export interface UserDirectory {
+  search(params: { query?: string; cursor?: string }): Promise<{ users: UserListItem[]; nextCursor: string | null }>;
+}
+
+export interface RoomRepository {
+  list(): Promise<Room[]>;
+  get(roomId: string): Promise<RoomWithMembers>;
+  openDirect(targetUserId: string): Promise<Room>;
+  createGroup(name: string, memberIds: string[]): Promise<Room>;
+  delete(roomId: string): Promise<void>;
+}
+
+export interface MessageRepository {
+  /** Newest-first page of messages older than `before` (a message id). */
+  list(roomId: string, params?: { before?: string; limit?: number }): Promise<Message[]>;
+}
+
+export type ConnectionStatus = "connecting" | "open" | "closed";
+
+/** Real-time channel (WebSocket). Room subscriptions survive reconnects. */
+export interface RealtimeGateway {
+  connect(): void;
+  disconnect(): void;
+  setRooms(roomIds: readonly string[]): void;
+  request<T extends WsRequestType>(type: T, payload: WsRequestPayload<T>): Promise<WsAckPayload<T>>;
+  /** Fire-and-forget (typing notifications). */
+  notify<T extends WsRequestType>(type: T, payload: WsRequestPayload<T>): void;
+  onEvent(listener: (event: ServerEvent) => void): () => void;
+  onStatus(listener: (status: ConnectionStatus) => void): () => void;
+}

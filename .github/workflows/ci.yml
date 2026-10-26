@@ -23,10 +23,8 @@ jobs:
       - run: bun run contracts:check
         env:
           CONTRACTS_BACKEND_DIR: .backend
-      # Lint has known react-hooks errors that the hexagonal rewrite (tasks T4.x) removes;
-      # report them without failing the build until then.
       - run: bun run lint
-        continue-on-error: true
+      - run: bun run test
       - run: bun run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3000

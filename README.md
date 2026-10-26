@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend_messages_chat
 
-## Getting Started
+Cliente web del chat en tiempo real. El backend vive en
+[backend_messages_chat](https://github.com/llOrtegall/backend_messages_chat) (REST + WebSocket).
 
-First, run the development server:
+| | |
+|---|---|
+| Framework | Next.js 16 (App Router), React 19 |
+| Estilos | Tailwind CSS 4 |
+| Lenguaje | TypeScript 5 (TS 7 cuando `typescript-eslint` lo soporte) |
+| Validación | Zod 4, con los contratos del backend |
+| Tests | `bun test` |
+
+## Puesta en marcha
+
+Requiere el backend corriendo en `http://localhost:3000` (ver su README: Docker, `bun run migrate`, `bun run seed`,
+`bun run dev`).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+echo 'NEXT_PUBLIC_API_URL=http://localhost:3000' > .env.local
+bun dev            # http://localhost:3001 — usuarios de prueba: alice/bob/carol@dev.local · password123
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Script | |
+|---|---|
+| `bun dev` / `bun run build` | Desarrollo (puerto 3001) / build de producción |
+| `bun run typecheck` · `bun run lint` | |
+| `bun run test` | Tests unitarios, de infraestructura (servidores falsos) y de arquitectura |
+| `bun run contracts:sync` | Copia `src/contracts/` desde `../backend_messages_chat` (o `$CONTRACTS_BACKEND_DIR`) |
+| `bun run contracts:check` | Falla si `src/contracts/` se editó a mano o difiere del backend |
+| `bun scripts/dev/e2e-smoke.ts` | Prueba E2E de las capas de aplicación e infraestructura contra el backend en marcha |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Arquitectura (hexagonal)
 
-## Learn More
+```
+src/
+  app/                 Rutas de Next: solo componen la UI
+  contracts/           Formato de red del backend (copia sincronizada, no editar)
+  domain/              Entidades (tipos de contracts), reglas puras y puertos
+  application/         SessionStore y ChatStore: casos de uso + estado (sin React ni fetch)
+  infrastructure/      HttpClient y adaptadores REST, WsRealtimeGateway
+  ui/                  Componentes y hooks; providers.tsx crea el contenedor
+  composition-root.ts  Único sitio que conoce los adaptadores concretos
+```
 
-To learn more about Next.js, take a look at the following resources:
+`tests/architecture.test.ts` hace cumplir las dependencias entre capas.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Sesión**: el refresh token es una cookie `HttpOnly` del API; el access token vive solo en memoria. Al cargar, la
+  sesión se restaura con un refresh (single-flight: el backend revoca la sesión si se reutiliza un token rotado).
+- **Tiempo real**: el WebSocket se abre con un ticket de un solo uso (`POST /ws/ticket`), nunca con el JWT en la URL.
+  Reconecta con backoff y jitter, re-suscribe las rooms y, tras cada (re)conexión, recarga rooms y la conversación
+  abierta porque los eventos perdidos no se reenvían.
+- **Contratos**: respuestas REST y frames WS se validan con Zod; un frame inválido se descarta.
+- **Rutas**: la protección es en cliente (`SessionGate`): la cookie pertenece al origen del API y el servidor de Next no
+  la ve. El API autoriza cada petición igualmente.
