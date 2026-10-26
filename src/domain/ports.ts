@@ -18,6 +18,14 @@ export interface AuthGateway {
   /** Restores the session from the refresh cookie; null when there is none or it expired. */
   restore(): Promise<CurrentUser | null>;
   logout(): Promise<void>;
+  /** The signed-in user as the server has it now. */
+  me(): Promise<CurrentUser>;
+  /** Emailed-token flows. The tokens are single use. */
+  verifyEmail(token: string): Promise<void>;
+  resendVerification(): Promise<void>;
+  requestPasswordReset(email: string): Promise<void>;
+  /** Also signs out every session of that user, this one included. */
+  resetPassword(token: string, newPassword: string): Promise<void>;
   /** Called when the session can no longer be refreshed (expired or revoked elsewhere). */
   onExpired(listener: () => void): () => void;
 }

@@ -7,13 +7,18 @@ const alice: CurrentUser = { id: "u1", email: "a@x.com", displayName: "Alice", a
 
 function fakeAuth(restored: CurrentUser | null) {
   let expired: () => void = () => {};
-  const calls = { restore: 0, logout: 0 };
+  const calls = { restore: 0, logout: 0, verify: 0, reset: [] as string[] };
   const auth: AuthGateway = {
     login: async () => alice,
     register: async () => alice,
     restore: async () => { calls.restore++; return restored; },
     logout: async () => { calls.logout++; },
     onExpired: (l) => { expired = l; return () => {}; },
+    me: async () => ({ ...alice, emailVerifiedAt: "2026-01-01T00:00:00.000Z" }),
+    verifyEmail: async () => { calls.verify++; },
+    resendVerification: async () => {},
+    requestPasswordReset: async () => {},
+    resetPassword: async (token) => { calls.reset.push(token); },
   };
   return { auth, calls, expire: () => expired() };
 }
@@ -44,6 +49,24 @@ describe("SessionStore", () => {
     await store.login("a@x.com", "pw");
     await store.logout();
     expect(calls.logout).toBe(1);
+    expect(store.getSnapshot().status).toBe("anonymous");
+  });
+
+  test("verifying an email redeems the token once and refreshes the signed-in user", async () => {
+    const { auth, calls } = fakeAuth(alice);
+    const store = new SessionStore(auth);
+    await store.restore();
+    await Promise.all([store.verifyEmail("t1"), store.verifyEmail("t1")]);
+    expect(calls.verify).toBe(1);
+    expect(store.getSnapshot().user?.emailVerifiedAt).not.toBeNull();
+  });
+
+  test("a password reset ends the local session", async () => {
+    const { auth, calls } = fakeAuth(alice);
+    const store = new SessionStore(auth);
+    await store.restore();
+    await store.resetPassword("t2", "newpassword");
+    expect(calls.reset).toEqual(["t2"]);
     expect(store.getSnapshot().status).toBe("anonymous");
   });
 });

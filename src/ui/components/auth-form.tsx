@@ -74,6 +74,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         {submitting ? "Enviando…" : isLogin ? "Entrar" : "Registrarme"}
       </button>
 
+      {isLogin && (
+        <p className="text-center text-sm">
+          <Link href="/forgot" className="text-slate-400 hover:text-slate-200 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
+      )}
+
       <p className="text-center text-sm text-slate-400">
         {isLogin ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
         <Link href={isLogin ? "/register" : "/login"} className="text-blue-400 hover:underline">

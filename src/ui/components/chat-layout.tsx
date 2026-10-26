@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useChat, useSession } from "../providers.tsx";
 import { ChatView } from "./chat-view.tsx";
+import { VerifyEmailBanner } from "./email-flows.tsx";
 import { NewConversationModal } from "./new-conversation-modal.tsx";
 import { RoomsList } from "./rooms-list.tsx";
 import { UsersList } from "./users-list.tsx";
@@ -52,7 +53,8 @@ export function ChatLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
+        <VerifyEmailBanner />
         {selectedRoomId ? (
           <ChatView key={selectedRoomId} roomId={selectedRoomId} />
         ) : (

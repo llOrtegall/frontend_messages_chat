@@ -35,7 +35,7 @@ export class RestAuthGateway implements AuthGateway {
 
   async restore() {
     if (!(await this.http.refresh())) return null;
-    return (await this.http.request("GET", "/api/v1/auth/me", UserResponseSchema)).user;
+    return this.me();
   }
 
   async logout() {
@@ -44,6 +44,30 @@ export class RestAuthGateway implements AuthGateway {
     } finally {
       this.http.setAccessToken(null);
     }
+  }
+
+  async me() {
+    return (await this.http.request("GET", "/api/v1/auth/me", UserResponseSchema)).user;
+  }
+
+  async verifyEmail(token: string) {
+    await this.http.request("POST", "/api/v1/auth/verify-email/confirm", null, { body: { token }, refreshOn401: false });
+  }
+
+  async resendVerification() {
+    await this.http.request("POST", "/api/v1/auth/verify-email/request", null, { body: {} });
+  }
+
+  async requestPasswordReset(email: string) {
+    await this.http.request("POST", "/api/v1/auth/password-reset/request", null, { body: { email }, refreshOn401: false });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    await this.http.request("POST", "/api/v1/auth/password-reset/confirm", null, {
+      body: { token, newPassword },
+      refreshOn401: false,
+    });
+    this.http.setAccessToken(null);
   }
 
   onExpired(listener: () => void) {

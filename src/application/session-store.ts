@@ -9,6 +9,7 @@ export type SessionState =
 
 export class SessionStore extends Store<SessionState> {
   private restoring: Promise<void> | null = null;
+  private readonly verifying = new Map<string, Promise<void>>();
 
   constructor(private readonly auth: AuthGateway) {
     super({ status: "loading", user: null });
@@ -38,6 +39,35 @@ export class SessionStore extends Store<SessionState> {
     } finally {
       this.setUser(null);
     }
+  }
+
+  /**
+   * Confirms an emailed verification token. Single-flight per token: React may run the page's
+   * effect twice and the token can only be redeemed once.
+   */
+  verifyEmail(token: string): Promise<void> {
+    let pending = this.verifying.get(token);
+    if (!pending) {
+      pending = this.auth.verifyEmail(token).then(async () => {
+        if (this.getSnapshot().status === "authenticated") this.setUser(await this.auth.me());
+      });
+      this.verifying.set(token, pending);
+    }
+    return pending;
+  }
+
+  resendVerification(): Promise<void> {
+    return this.auth.resendVerification();
+  }
+
+  requestPasswordReset(email: string): Promise<void> {
+    return this.auth.requestPasswordReset(email.trim());
+  }
+
+  /** The backend revokes every session of the user, so this one ends too. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await this.auth.resetPassword(token, newPassword);
+    this.setUser(null);
   }
 
   private setUser(user: CurrentUser | null): void {
