@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Id, IsoDateTime } from "./common.ts";
 import { MessageSchema } from "./messages.ts";
+import { RoomMemberSchema, RoomSchema } from "./rooms.ts";
 
 export const WsEnvelopeSchema = z.object({
   type: z.string(),
@@ -79,6 +80,12 @@ export const ServerFrameSchema = z.discriminatedUnion("type", [
   frame("user.typing", z.strictObject({ roomId: Id, userId: Id })),
   frame("presence.online", z.strictObject({ userId: Id })),
   frame("presence.offline", z.strictObject({ userId: Id })),
+  // Sent to the affected user: a room appeared in / disappeared from their room list.
+  frame("room.added", z.strictObject({ room: RoomSchema })),
+  frame("room.removed", z.strictObject({ roomId: Id })),
+  // Sent to subscribers of the room.
+  frame("room.member_added", z.strictObject({ roomId: Id, member: RoomMemberSchema })),
+  frame("room.member_removed", z.strictObject({ roomId: Id, userId: Id })),
 ]);
 export type ServerFrame = z.infer<typeof ServerFrameSchema>;
 /** Push events (everything except request responses). */

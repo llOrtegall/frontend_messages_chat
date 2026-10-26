@@ -12,8 +12,6 @@ import { CreateDirectRoomModal } from "./create-direct-room-modal";
 
 type Tab = "chats" | "users";
 
-const ROOMS_POLL_INTERVAL = 5_000;
-
 export function ChatLayout() {
   const [rooms, setRooms] = useState<RoomDto[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -32,7 +30,8 @@ export function ChatLayout() {
   const currentUserIdRef = useRef(user?.id);
   currentUserIdRef.current = user?.id;
 
-  // Load + poll rooms
+  // Rooms are loaded once and on every (re)connect; in between, room.added / room.removed
+  // keep the list current (events missed while disconnected are not replayed).
   const loadRooms = useCallback(async () => {
     try {
       const data = await apiClient.listRooms();
@@ -40,17 +39,24 @@ export function ChatLayout() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => {
-    loadRooms();
-    const id = setInterval(loadRooms, ROOMS_POLL_INTERVAL);
-    return () => clearInterval(id);
-  }, [loadRooms]);
 
   // Global WS — subscribed to ALL rooms at once
   const roomIds = rooms.map((r) => r.id);
 
   const handleGlobalEvent = useCallback((event: BusEvent) => {
     const activeRoom = selectedRoomIdRef.current;
+
+    if (event.kind === "room.added") {
+      setRooms((prev) => prev.some((r) => r.id === event.room.id) ? prev : [event.room, ...prev]);
+      return;
+    }
+
+    if (event.kind === "room.removed") {
+      setRooms((prev) => prev.filter((r) => r.id !== event.roomId));
+      setUnread((prev) => { const next = { ...prev }; delete next[event.roomId]; return next; });
+      if (activeRoom === event.roomId) setSelectedRoomId(null);
+      return;
+    }
 
     if (event.kind === "message.created") {
       const { id: msgId, roomId: msgRoomId, senderId } = event.message;
@@ -81,6 +87,10 @@ export function ChatLayout() {
   }, []);
 
   const { connected, sendWs, sendWsRequest } = useWebSocket(roomIds, handleGlobalEvent);
+
+  useEffect(() => {
+    if (connected) loadRooms();
+  }, [connected, loadRooms]);
 
   // Select a room → clear its badge
   const selectRoom = useCallback((roomId: string) => {

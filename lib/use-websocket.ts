@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "./auth-context";
+import type { RoomDto } from "./api-client";
 
 export interface WsMessage {
   type: string;
@@ -27,7 +28,9 @@ export type BusEvent =
   | { kind: "message.read"; roomId: string; userId: string; messageId: string }
   | { kind: "user.typing"; roomId: string; userId: string }
   | { kind: "user.online"; userId: string }
-  | { kind: "user.offline"; userId: string };
+  | { kind: "user.offline"; userId: string }
+  | { kind: "room.added"; room: RoomDto }
+  | { kind: "room.removed"; roomId: string };
 
 const MAX_RETRY_DELAY_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -49,6 +52,10 @@ function parseEvent(msg: WsMessage): BusEvent | null {
       return { kind: "user.online", userId: p.userId as string };
     case "presence.offline":
       return { kind: "user.offline", userId: p.userId as string };
+    case "room.added":
+      return { kind: "room.added", room: p.room as RoomDto };
+    case "room.removed":
+      return { kind: "room.removed", roomId: p.roomId as string };
     default:
       return null;
   }
@@ -172,7 +179,7 @@ export function useWebSocket(roomIds: string[], onEvent?: (event: BusEvent) => v
     };
   }, [accessToken, connect]);
 
-  // Re-subscribe when roomIds grow (new rooms discovered via polling)
+  // Re-subscribe when roomIds grow (rooms added via room.added or a reload)
   const prevIdsRef = useRef<string>("");
   useEffect(() => {
     const joined = [...roomIds].sort().join(",");
