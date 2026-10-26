@@ -6,7 +6,7 @@ import { useSession } from "../providers.tsx";
 import { errorMessage } from "../../application/store.ts";
 
 const input =
-  "w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 /** Login or registration. On success the session changes and <SessionGate> redirects to /chat. */
 export function AuthForm({ mode }: { mode: "login" | "register" }) {

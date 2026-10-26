@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "../providers.tsx";
 
 export function FullScreenMessage({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center text-slate-500">{children}</div>;
+  return <div className="flex flex-1 items-center justify-center text-slate-400">{children}</div>;
 }
 
 /**

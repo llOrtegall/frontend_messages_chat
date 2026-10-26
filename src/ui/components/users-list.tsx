@@ -39,14 +39,14 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre o email exacto"
           aria-label="Buscar usuarios"
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
         />
       </div>
       <div className="flex items-center justify-between px-4 pt-2 pb-1">
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-400">
           {onlineCount} conectado{onlineCount !== 1 ? "s" : ""}
         </span>
-        <button onClick={() => void reload()} className="text-xs text-slate-500 hover:text-slate-300 transition" title="Recargar" aria-label="Recargar">
+        <button onClick={() => void reload()} className="text-xs text-slate-400 hover:text-slate-300 transition" title="Recargar" aria-label="Recargar">
           ↺
         </button>
       </div>
@@ -54,9 +54,9 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
 
       <div className="flex-1 overflow-y-auto">
         {loading && users.length === 0 ? (
-          <div className="p-4 text-slate-500 text-sm">Cargando…</div>
+          <div className="p-4 text-slate-400 text-sm">Cargando…</div>
         ) : users.length === 0 ? (
-          <div className="p-4 text-slate-500 text-sm">{query.trim() ? "Ningún usuario coincide." : "No hay otros usuarios registrados."}</div>
+          <div className="p-4 text-slate-400 text-sm">{query.trim() ? "Ningún usuario coincide." : "No hay otros usuarios registrados."}</div>
         ) : (
           <ul className="space-y-0.5 p-2">
             {users.map((u) => (
@@ -71,7 +71,7 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
                   <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(u) ? "bg-green-400" : "bg-slate-600"}`} aria-hidden />
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-medium text-slate-200 truncate">{u.displayName}</span>
-                    <span className="block text-xs text-slate-500">{isOnline(u) ? "En línea" : "Desconectado"}</span>
+                    <span className="block text-xs text-slate-400">{isOnline(u) ? "En línea" : "Desconectado"}</span>
                   </span>
                   <span className="shrink-0 text-xs text-blue-400">{opening === u.id ? "…" : "DM"}</span>
                 </button>
@@ -97,7 +97,7 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
           <div className="text-slate-100 font-medium">
             {me.displayName} <span className="text-green-400 text-xs">● tú</span>
           </div>
-          <div className="text-slate-500 text-xs">{me.email}</div>
+          <div className="text-slate-400 text-xs">{me.email}</div>
         </div>
       )}
     </div>

@@ -43,14 +43,12 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
         {room.members.map((m) => (
           <li key={m.userId} className="px-2 py-1.5 rounded hover:bg-slate-800">
             <div className="flex items-center gap-2 text-sm">
-              <span
-                className={`w-2 h-2 rounded-full ${presence[m.userId] ? "bg-green-500" : "bg-slate-600"}`}
-                aria-label={presence[m.userId] ? "en línea" : "desconectado"}
-              />
+              <span className={`w-2 h-2 rounded-full ${presence[m.userId] ? "bg-green-500" : "bg-slate-600"}`} aria-hidden />
+              <span className="sr-only">{presence[m.userId] ? "En línea:" : "Desconectado:"}</span>
               <Avatar name={m.displayName} url={m.avatarUrl} size="sm" />
               <span className="flex-1 truncate">
                 {m.displayName}
-                {m.userId === user.id && <span className="text-slate-500"> (tú)</span>}
+                {m.userId === user.id && <span className="text-slate-400"> (tú)</span>}
               </span>
               <span className="text-[10px] uppercase tracking-wide text-slate-400">{ROLE_LABEL[m.role]}</span>
             </div>

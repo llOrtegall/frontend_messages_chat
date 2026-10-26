@@ -22,9 +22,9 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
 
       <div className="flex-1 overflow-y-auto">
         {!roomsLoaded ? (
-          <div className="p-4 text-slate-500 text-sm">Cargando…</div>
+          <div className="p-4 text-slate-400 text-sm">Cargando…</div>
         ) : rooms.length === 0 ? (
-          <div className="p-4 text-slate-500 text-sm">Sin conversaciones. ¡Crea una!</div>
+          <div className="p-4 text-slate-400 text-sm">Sin conversaciones. ¡Crea una!</div>
         ) : (
           <ul className="space-y-0.5 p-2">
             {rooms.map((room) => {
@@ -51,14 +51,14 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
                       {count > 0 && !selected && (
                         <span
                           className="shrink-0 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                          aria-label={`${count} sin leer`}
                         >
-                          {count > 99 ? "99+" : count}
+                          <span aria-hidden>{count > 99 ? "99+" : count}</span>
+                          <span className="sr-only">, {count} sin leer</span>
                         </span>
                       )}
                     </span>
                     {room.lastMessageAt && (
-                      <span className={`block text-xs mt-0.5 ml-6 ${selected ? "text-blue-100" : "text-slate-500"}`}>
+                      <span className={`block text-xs mt-0.5 ml-6 ${selected ? "text-blue-100" : "text-slate-400"}`}>
                         {formatActivity(room.lastMessageAt)}
                       </span>
                     )}

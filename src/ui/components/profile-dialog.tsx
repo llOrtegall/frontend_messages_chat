@@ -5,6 +5,7 @@ import { errorMessage } from "../../application/store.ts";
 import { AVATAR_ACCEPT } from "../../domain/rules.ts";
 import { useSession } from "../providers.tsx";
 import { Avatar } from "./avatar.tsx";
+import { Modal } from "./modal.tsx";
 
 export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const { user, store } = useSession();
@@ -47,8 +48,8 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const shownAvatar = avatar === undefined ? user.avatarUrl : avatar.preview;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="profile-title" onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <form onSubmit={(e) => void save(e)} className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl space-y-4">
+    <Modal labelledBy="profile-title" onClose={onClose}>
+      <form onSubmit={(e) => void save(e)} className="space-y-4">
         <h2 id="profile-title" className="text-lg font-bold">Tu perfil</h2>
         {error && <div role="alert" className="bg-red-900/40 border border-red-700 text-red-300 text-sm p-3 rounded-lg">{error}</div>}
 
@@ -78,7 +79,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             autoFocus
           />
         </label>
-        <p className="text-xs text-slate-500">{user.email}</p>
+        <p className="text-xs text-slate-400">{user.email}</p>
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-sm">
@@ -89,6 +90,6 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

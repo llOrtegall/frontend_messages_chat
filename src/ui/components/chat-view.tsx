@@ -94,13 +94,13 @@ export function ChatView({ roomId }: { roomId: string }) {
             {connection === "open" ? "conectado" : connection === "connecting" ? "conectando…" : "sin conexión"}
           </span>
           {selectedRoom && canDeleteRoom(selectedRoom, user) && (
-            <button onClick={() => void deleteRoom()} title="Eliminar conversación" aria-label="Eliminar conversación" className="text-slate-500 hover:text-red-400 transition text-sm px-1.5 py-0.5 rounded hover:bg-slate-800">
+            <button onClick={() => void deleteRoom()} title="Eliminar conversación" aria-label="Eliminar conversación" className="text-slate-400 hover:text-red-400 transition text-sm px-1.5 py-0.5 rounded hover:bg-slate-800">
               🗑
             </button>
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" aria-live="polite">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" role="log" aria-label="Mensajes" aria-relevant="additions">
           {page?.hasMore && list.length > 0 && (
             <div className="text-center">
               <button onClick={() => void store.loadOlder(roomId)} disabled={page.loading} className="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50">
@@ -109,28 +109,29 @@ export function ChatView({ roomId }: { roomId: string }) {
             </div>
           )}
           {!page || (page.loading && list.length === 0) ? (
-            <div className="text-center text-slate-500 text-sm pt-8">Cargando mensajes…</div>
+            <div className="text-center text-slate-400 text-sm pt-8">Cargando mensajes…</div>
           ) : list.length === 0 ? (
-            <div className="text-center text-slate-500 text-sm pt-8">Sin mensajes aún. ¡Di algo!</div>
+            <div className="text-center text-slate-400 text-sm pt-8">Sin mensajes aún. ¡Di algo!</div>
           ) : (
             list.map((msg, i) => {
               const own = msg.senderId === user?.id;
               const showSender = isGroup && !own && list[i - 1]?.senderId !== msg.senderId;
+            const author = own ? "Tú" : isGroup ? senderName(selectedRoom, msg.senderId) : (listed?.peer?.displayName ?? "Contacto");
               const isEditing = editing?.id === msg.id;
               return (
                 <div key={msg.id} className={`group flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
                   {canEditMessage(msg, user) && !isEditing && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition mb-1">
-                      <button onClick={() => setEditing({ id: msg.id, body: msg.body })} className="text-xs text-slate-500 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Editar" aria-label="Editar mensaje">
+                      <button onClick={() => setEditing({ id: msg.id, body: msg.body })} className="text-xs text-slate-400 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Editar" aria-label="Editar mensaje">
                         ✎
                       </button>
-                      <button onClick={() => void store.deleteMessage(msg.id)} className="text-xs text-slate-500 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Borrar" aria-label="Borrar mensaje">
+                      <button onClick={() => void store.deleteMessage(msg.id)} className="text-xs text-slate-400 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Borrar" aria-label="Borrar mensaje">
                         ✕
                       </button>
                     </div>
                   )}
                   <div className={`max-w-sm flex flex-col ${own ? "items-end" : "items-start"}`}>
-                    {showSender && <span className="text-xs text-purple-300 px-1 mb-0.5">{senderName(selectedRoom, msg.senderId)}</span>}
+                    {showSender && <span aria-hidden className="text-xs text-purple-300 px-1 mb-0.5">{senderName(selectedRoom, msg.senderId)}</span>}
                     {isEditing ? (
                       <div className="flex gap-1 w-72">
                         <input
@@ -149,11 +150,12 @@ export function ChatView({ roomId }: { roomId: string }) {
                       </div>
                     ) : (
                       <div className={`px-3 py-2 rounded-2xl space-y-1 ${own ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-700 rounded-bl-sm"}`}>
-                        {msg.attachmentMeta && <MessageAttachment meta={msg.attachmentMeta} />}
+                        <span className="sr-only">{author}: </span>
+                      {msg.attachmentMeta && <MessageAttachment meta={msg.attachmentMeta} />}
                         {msg.body && <p className="break-words text-sm leading-relaxed">{msg.body}</p>}
                       </div>
                     )}
-                    <span className="text-[10px] text-slate-500 mt-0.5 px-1">
+                    <span className="text-[10px] text-slate-400 mt-0.5 px-1">
                       {formatTime(msg.createdAt)}
                       {msg.editedAt && " · editado"}
                     </span>
@@ -165,7 +167,9 @@ export function ChatView({ roomId }: { roomId: string }) {
           <div ref={endRef} />
         </div>
 
-        {typers.length > 0 && <div className="px-4 py-1 text-xs text-slate-500 italic">Alguien está escribiendo…</div>}
+        <div role="status" className="px-4 text-xs text-slate-400 italic min-h-5">
+          {typers.length > 0 && (isGroup ? `${typers.map((u) => senderName(selectedRoom, u)).join(", ")} está escribiendo…` : "Está escribiendo…")}
+        </div>
         {error && (
           <div role="alert" className="mx-4 mb-2 px-3 py-2 bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg flex justify-between gap-2">
             <span>{error}</span>
@@ -201,7 +205,7 @@ export function ChatView({ roomId }: { roomId: string }) {
             placeholder={connection === "open" ? "Escribe un mensaje…" : "Sin conexión…"}
             aria-label="Mensaje"
             maxLength={4096}
-            className="flex-1 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             disabled={sending}
           />
           <button
