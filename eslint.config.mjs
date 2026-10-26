@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Backend checkout used by CI for contracts:check.
+    ".backend/**",
   ]),
 ]);
 
