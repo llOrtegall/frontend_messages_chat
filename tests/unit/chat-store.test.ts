@@ -117,6 +117,28 @@ describe("ChatStore", () => {
     expect(store.getSnapshot().unread[b]).toBeUndefined();
   });
 
+  test("member events keep the open group's member list current", async () => {
+    const { store, realtime, roomsRepo } = setup();
+    const g = room({ kind: "group", name: "G" });
+    const m = (userId: string, role: "owner" | "admin" | "member" = "member") =>
+      ({ userId, displayName: userId, avatarUrl: null, role, joinedAt: iso(), lastReadMessageId: null, mutedUntil: null });
+    roomsRepo.rooms.push(g);
+    roomsRepo.details.set(g.id, { ...g, members: [m(ME, "owner"), m("b")] });
+    await store.selectRoom(g.id);
+
+    realtime.emit({ type: "room.member_added", payload: { roomId: g.id, member: m("c") } });
+    realtime.emit({ type: "room.member_updated", payload: { roomId: g.id, member: m("b", "admin") } });
+    realtime.emit({ type: "room.member_removed", payload: { roomId: g.id, userId: "c" } });
+    expect(store.getSnapshot().selectedRoom!.members.map((x) => [x.userId, x.role])).toEqual([[ME, "owner"], ["b", "admin"]]);
+
+    expect(await store.setMemberRole(g.id, "b", "member")).toBe(true);
+    expect(await store.leaveGroup(g.id)).toBe(true);
+    expect(roomsRepo.calls).toEqual([
+      { op: "role", args: [g.id, "b", "member"] },
+      { op: "remove", args: [g.id, ME] },
+    ]);
+  });
+
   test("room.added / room.removed keep the list and subscriptions current", async () => {
     const { store, realtime, rooms } = setup();
     realtime.status("open");

@@ -1,5 +1,6 @@
 import {
   AuthResponseSchema,
+  MemberResponseSchema,
   MessageListResponseSchema,
   RoomDetailResponseSchema,
   RoomListResponseSchema,
@@ -84,6 +85,18 @@ export class RestRoomRepository implements RoomRepository {
 
   async delete(roomId: string) {
     await this.http.request("DELETE", `/api/v1/rooms/${roomId}`, null);
+  }
+
+  async addMember(roomId: string, userId: string) {
+    await this.http.request("POST", `/api/v1/rooms/${roomId}/members`, MemberResponseSchema, { body: { userId } });
+  }
+
+  async removeMember(roomId: string, userId: string) {
+    await this.http.request("DELETE", `/api/v1/rooms/${roomId}/members`, null, { body: { userId } });
+  }
+
+  async setMemberRole(roomId: string, userId: string, role: "admin" | "member") {
+    await this.http.request("PATCH", `/api/v1/rooms/${roomId}/members`, MemberResponseSchema, { body: { userId, role } });
   }
 }
 

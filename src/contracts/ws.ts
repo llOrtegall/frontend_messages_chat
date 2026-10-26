@@ -86,6 +86,7 @@ export const ServerFrameSchema = z.discriminatedUnion("type", [
   // Sent to subscribers of the room.
   frame("room.member_added", z.strictObject({ roomId: Id, member: RoomMemberSchema })),
   frame("room.member_removed", z.strictObject({ roomId: Id, userId: Id })),
+  frame("room.member_updated", z.strictObject({ roomId: Id, member: RoomMemberSchema })),
 ]);
 export type ServerFrame = z.infer<typeof ServerFrameSchema>;
 /** Push events (everything except request responses). */

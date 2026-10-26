@@ -46,7 +46,9 @@ export class FakeRooms implements RoomRepository {
   constructor(public rooms: Room[] = []) {}
   details = new Map<string, RoomWithMembers>();
   unreadCounts = new Map<string, number>();
-  async list() { return this.rooms.map((r) => ({ ...r, unreadCount: this.unreadCounts.get(r.id) ?? 0, lastReadMessageId: null })); }
+  async list() {
+    return this.rooms.map((r) => ({ ...r, unreadCount: this.unreadCounts.get(r.id) ?? 0, lastReadMessageId: null, peer: null }));
+  }
   async get(roomId: string) {
     const d = this.details.get(roomId);
     if (d) return d;
@@ -56,6 +58,10 @@ export class FakeRooms implements RoomRepository {
   async openDirect() { const r = room(); this.rooms.push(r); return r; }
   async createGroup(name: string) { const r = room({ kind: "group", name }); this.rooms.push(r); return r; }
   async delete() {}
+  calls: { op: string; args: unknown[] }[] = [];
+  async addMember(...args: unknown[]) { this.calls.push({ op: "add", args }); }
+  async removeMember(...args: unknown[]) { this.calls.push({ op: "remove", args }); }
+  async setMemberRole(...args: unknown[]) { this.calls.push({ op: "role", args }); }
 }
 
 export class FakeMessages implements MessageRepository {

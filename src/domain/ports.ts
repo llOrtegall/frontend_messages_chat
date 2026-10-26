@@ -33,6 +33,10 @@ export interface RoomRepository {
   openDirect(targetUserId: string): Promise<Room>;
   createGroup(name: string, memberIds: string[]): Promise<Room>;
   delete(roomId: string): Promise<void>;
+  addMember(roomId: string, userId: string): Promise<void>;
+  /** Removing yourself is leaving. */
+  removeMember(roomId: string, userId: string): Promise<void>;
+  setMemberRole(roomId: string, userId: string, role: "admin" | "member"): Promise<void>;
 }
 
 export interface MessageRepository {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id, IsoDateTime } from "./common.ts";
+import { UserSummarySchema } from "./users.ts";
 
 export const RoomKindSchema = z.enum(["dm", "group"]);
 export const RoomRoleSchema = z.enum(["owner", "admin", "member"]);
@@ -18,11 +19,15 @@ export type Room = z.infer<typeof RoomSchema>;
 export const RoomListItemSchema = RoomSchema.extend({
   unreadCount: z.number().int().min(0),
   lastReadMessageId: Id.nullable(),
+  /** DMs: the other member (for the title). Null for groups. */
+  peer: UserSummarySchema.nullable(),
 });
 export type RoomListItem = z.infer<typeof RoomListItemSchema>;
 
 export const RoomMemberSchema = z.strictObject({
   userId: Id,
+  displayName: z.string(),
+  avatarUrl: z.string().nullable(),
   role: RoomRoleSchema,
   joinedAt: IsoDateTime,
   lastReadMessageId: Id.nullable(),
@@ -55,6 +60,13 @@ export type AddMemberInput = z.infer<typeof AddMemberSchema>;
 export const RemoveMemberSchema = z.object({
   userId: Id,
 });
+
+/** Owner only. Ownership itself is not transferable. */
+export const UpdateMemberRoleSchema = z.object({
+  userId: Id,
+  role: z.enum(["admin", "member"]),
+});
+export type UpdateMemberRoleInput = z.infer<typeof UpdateMemberRoleSchema>;
 
 // Responses
 

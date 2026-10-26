@@ -130,6 +130,24 @@ check(!(await aChat.send(roomId, "", new Blob(["<svg/>"], { type: "image/svg+xml
 check(!(await cChat.edit(msg.id, "nope")), "editing someone else's message is refused");
 check(cChat.getSnapshot().error !== null, "refusal surfaces as an error message");
 
+await until(() => aChat.getSnapshot().rooms.find((r) => r.id === roomId)?.peer?.id === carolId, "DM is titled with the other member");
+
+// Groups: names, roles, leaving.
+const groupId = await aChat.createGroup("Equipo e2e", [carolId]);
+await until(() => aChat.getSnapshot().selectedRoom?.id === groupId, "group created and opened");
+await until(() => cChat.getSnapshot().rooms.some((r) => r.id === groupId), "member gets the new group");
+await cChat.selectRoom(groupId);
+check(cChat.getSnapshot().selectedRoom?.members.some((m) => m.userId === aliceId && m.role === "owner" && m.displayName.length > 0) ?? false, "members carry names and roles");
+await Bun.sleep(200); // subscriptions to the new room
+await aChat.setMemberRole(groupId, carolId, "admin");
+await until(() => cChat.getSnapshot().selectedRoom?.members.find((m) => m.userId === carolId)?.role === "admin", "role change propagates");
+check(!(await aChat.leaveGroup(groupId)), "owner can't leave the group");
+await cChat.leaveGroup(groupId);
+await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === groupId), "leaving removes the group for the member");
+await until(() => !aChat.getSnapshot().selectedRoom?.members.some((m) => m.userId === carolId), "owner sees the member leave");
+aChat.dismissError();
+await aChat.deleteRoom(groupId);
+
 await aChat.deleteRoom(roomId);
 await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === roomId) && cChat.getSnapshot().selectedRoomId === null, "room deletion closes it for the other member");
 

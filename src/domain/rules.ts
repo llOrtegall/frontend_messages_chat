@@ -1,4 +1,4 @@
-import type { AttachmentContentType, AttachmentMeta, CurrentUser, Message, Room, RoomWithMembers } from "./entities.ts";
+import type { AttachmentContentType, AttachmentMeta, CurrentUser, Message, Room, RoomMember, RoomWithMembers, UserSummary } from "./entities.ts";
 
 // Message ids are UUIDv7, so lexical order is chronological order.
 const byId = (a: Message, b: Message) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -46,8 +46,41 @@ export function canDeleteRoom(room: RoomWithMembers, user: CurrentUser | null): 
   return room.members.some((m) => m.userId === user.id && m.role === "owner");
 }
 
-export function roomTitle(room: Pick<Room, "kind" | "name">): string {
-  return room.kind === "dm" ? room.name || "Mensaje directo" : room.name || "Grupo sin nombre";
+/** A room in the list. `peer` (the other DM member) comes from GET /rooms; push events don't carry it. */
+export type ListedRoom = Room & { peer?: UserSummary | null };
+
+export function roomTitle(room: Pick<ListedRoom, "kind" | "name" | "peer">): string {
+  return room.kind === "dm" ? room.peer?.displayName || room.name || "Mensaje directo" : room.name || "Grupo sin nombre";
+}
+
+// Group membership rules, mirroring the backend (which enforces them).
+const roleOf = (room: RoomWithMembers, userId: string) => room.members.find((m) => m.userId === userId)?.role ?? null;
+
+export function canAddMembers(room: RoomWithMembers, me: CurrentUser): boolean {
+  const role = roleOf(room, me.id);
+  return room.kind === "group" && (role === "owner" || role === "admin");
+}
+
+/** Removing someone else: owner removes anyone but themselves; admins remove plain members. */
+export function canRemoveMember(room: RoomWithMembers, me: CurrentUser, target: RoomMember): boolean {
+  if (room.kind !== "group" || target.userId === me.id) return false;
+  const role = roleOf(room, me.id);
+  return role === "owner" ? target.role !== "owner" : role === "admin" && target.role === "member";
+}
+
+export function canChangeRole(room: RoomWithMembers, me: CurrentUser, target: RoomMember): boolean {
+  return room.kind === "group" && roleOf(room, me.id) === "owner" && target.role !== "owner";
+}
+
+/** The owner can't leave (they delete the group instead); DMs are deleted, not left. */
+export function canLeave(room: RoomWithMembers, me: CurrentUser): boolean {
+  const role = roleOf(room, me.id);
+  return room.kind === "group" && role !== null && role !== "owner";
+}
+
+/** Sender label in group chats; people who left the group are no longer listed. */
+export function senderName(room: RoomWithMembers | null, userId: string): string {
+  return room?.members.find((m) => m.userId === userId)?.displayName ?? "Antiguo miembro";
 }
 
 // `satisfies` keeps this in lockstep with the backend's allowlist: a missing or extra type fails typecheck.

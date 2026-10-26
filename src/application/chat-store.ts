@@ -1,11 +1,19 @@
-import type { Message, Room, RoomWithMembers, ServerEvent } from "../domain/entities.ts";
+import type { Message, RoomWithMembers, ServerEvent } from "../domain/entities.ts";
 import type { AttachmentUploader, ConnectionStatus, MessageRepository, RealtimeGateway, RoomRepository } from "../domain/ports.ts";
-import { mergeMessages, removeMessage, touchRoom, upsertMessage, upsertRoom, sortRoomsByActivity } from "../domain/rules.ts";
+import {
+  mergeMessages,
+  removeMessage,
+  touchRoom,
+  upsertMessage,
+  upsertRoom,
+  sortRoomsByActivity,
+  type ListedRoom,
+} from "../domain/rules.ts";
 import { errorMessage, Store } from "./store.ts";
 
 export interface ChatState {
   connection: ConnectionStatus;
-  rooms: Room[];
+  rooms: ListedRoom[];
   roomsLoaded: boolean;
   selectedRoomId: string | null;
   /** Detail (members) of the selected room, null while loading. */
@@ -158,6 +166,23 @@ export class ChatStore extends Store<ChatState> {
     return this.attempt(() => this.deps.realtime.request("chat.delete", { messageId }), "No se pudo borrar el mensaje");
   }
 
+  // Membership changes come back as room.member_* / room.removed events, which update the state.
+  addMember(roomId: string, userId: string): Promise<boolean> {
+    return this.attempt(() => this.deps.rooms.addMember(roomId, userId), "No se pudo añadir al miembro");
+  }
+
+  removeMember(roomId: string, userId: string): Promise<boolean> {
+    return this.attempt(() => this.deps.rooms.removeMember(roomId, userId), "No se pudo quitar al miembro");
+  }
+
+  leaveGroup(roomId: string): Promise<boolean> {
+    return this.attempt(() => this.deps.rooms.removeMember(roomId, this.deps.currentUserId), "No se pudo salir del grupo");
+  }
+
+  setMemberRole(roomId: string, userId: string, role: "admin" | "member"): Promise<boolean> {
+    return this.attempt(() => this.deps.rooms.setMemberRole(roomId, userId, role), "No se pudo cambiar el rol");
+  }
+
   deleteRoom(roomId: string): Promise<boolean> {
     // The room.removed event updates the list for every member, this tab included.
     return this.attempt(() => this.deps.rooms.delete(roomId), "No se pudo eliminar la conversación");
@@ -232,7 +257,7 @@ export class ChatStore extends Store<ChatState> {
     }));
   }
 
-  private setRooms(rooms: Room[]): void {
+  private setRooms(rooms: ListedRoom[]): void {
     this.setState({ rooms });
     this.deps.realtime.setRooms(rooms.map((r) => r.id));
   }
@@ -287,6 +312,8 @@ export class ChatStore extends Store<ChatState> {
       }
       case "room.added":
         this.setRooms(upsertRoom(this.getSnapshot().rooms, event.payload.room));
+        // A DM's title is the other member, which only the room list carries.
+        if (event.payload.room.kind === "dm") void this.reloadRooms();
         break;
       case "room.removed": {
         const { roomId } = event.payload;
@@ -302,14 +329,17 @@ export class ChatStore extends Store<ChatState> {
         break;
       }
       case "room.member_added":
+      case "room.member_updated":
       case "room.member_removed": {
         const { roomId } = event.payload;
         const room = this.getSnapshot().selectedRoom;
         if (room?.id !== roomId) break;
         const members =
-          event.type === "room.member_added"
-            ? [...room.members.filter((m) => m.userId !== event.payload.member.userId), event.payload.member]
-            : room.members.filter((m) => m.userId !== event.payload.userId);
+          event.type === "room.member_removed"
+            ? room.members.filter((m) => m.userId !== event.payload.userId)
+            : room.members.some((m) => m.userId === event.payload.member.userId)
+              ? room.members.map((m) => (m.userId === event.payload.member.userId ? event.payload.member : m))
+              : [...room.members, event.payload.member];
         this.setState({ selectedRoom: { ...room, members } });
         break;
       }
