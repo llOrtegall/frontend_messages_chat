@@ -5,6 +5,7 @@
 //   bun scripts/dev/e2e-smoke.ts [apiUrl] [origin]
 import { ChatStore } from "../../src/application/chat-store.ts";
 import { SessionStore } from "../../src/application/session-store.ts";
+import { S3AttachmentUploader } from "../../src/infrastructure/http/attachment-uploader.ts";
 import { HttpClient } from "../../src/infrastructure/http/http-client.ts";
 import { RestAuthGateway, RestMessageRepository, RestRoomRepository, RestUserDirectory } from "../../src/infrastructure/http/rest-adapters.ts";
 import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
@@ -39,6 +40,10 @@ function client(email: string) {
       currentUserId: userId,
       rooms: new RestRoomRepository(http),
       messages: new RestMessageRepository(http),
+      // The PUT goes to the bucket: Origin (CORS) but no API cookies.
+      attachments: new S3AttachmentUploader(http, (url, init) =>
+        fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } }),
+      ),
       realtime: new WsRealtimeGateway({ url: API, issueTicket: () => auth.issueWsTicket() }),
     });
   return { email, http, auth, session, users, chat };
@@ -102,6 +107,15 @@ await aChat.edit(msg.id, "editado (e2e)");
 await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.body === "editado (e2e)"), "edit propagates");
 await aChat.deleteMessage(msg.id);
 await until(() => !cChat.getSnapshot().messages[roomId]!.some((m) => m.id === msg.id), "delete propagates");
+
+// 1x1 transparent PNG
+const png = new Blob([Uint8Array.fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")], { type: "image/png" });
+check(await aChat.send(roomId, "foto (e2e)", png), "upload attachment straight to the bucket and send");
+await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.attachmentMeta?.contentType === "image/png"), "recipient gets attachment metadata");
+const att = cChat.getSnapshot().messages[roomId]!.find((m) => m.attachmentMeta)!.attachmentMeta!;
+const pub = await fetch(att.url);
+check(pub.ok && pub.headers.get("content-type") === "image/png" && att.sizeBytes === png.size, "public URL serves the image");
+check(!(await aChat.send(roomId, "", new Blob(["<svg/>"], { type: "image/svg+xml" }))), "SVG is refused");
 
 check(!(await cChat.edit(msg.id, "nope")), "editing someone else's message is refused");
 check(cChat.getSnapshot().error !== null, "refusal surfaces as an error message");

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { ChatStore } from "../../src/application/chat-store.ts";
-import { FakeMessages, FakeRealtime, FakeRooms, flush, iso, message, room } from "../fakes.ts";
+import { FakeAttachments, FakeMessages, FakeRealtime, FakeRooms, flush, iso, message, room } from "../fakes.ts";
 
 const ME = "me";
 
@@ -8,12 +8,13 @@ function setup(rooms = [room({ createdAt: iso(1) }), room({ createdAt: iso(2) })
   const realtime = new FakeRealtime();
   const roomsRepo = new FakeRooms(rooms);
   const messages = new FakeMessages();
+  const attachments = new FakeAttachments();
   const store = new ChatStore(
-    { currentUserId: ME, rooms: roomsRepo, messages, realtime },
+    { currentUserId: ME, rooms: roomsRepo, messages, attachments, realtime },
     { pageSize: 2, typingTtlMs: 30, typingThrottleMs: 50 },
   );
   store.start();
-  return { store, realtime, roomsRepo, messages, rooms };
+  return { store, realtime, roomsRepo, messages, attachments, rooms };
 }
 
 describe("ChatStore", () => {
@@ -129,6 +130,21 @@ describe("ChatStore", () => {
     expect(store.getSnapshot().error).toBe("Not a member of this room");
     store.dismissError();
     expect(store.getSnapshot().error).toBeNull();
+  });
+
+  test("send with a file uploads it first and attaches the key", async () => {
+    const { store, realtime, attachments, rooms } = setup();
+    const r = rooms[0]!.id;
+    const file = new Blob(["x"], { type: "image/png" });
+
+    expect(await store.send(r, "", file)).toBe(true);
+    expect(attachments.uploads).toEqual([file]);
+    expect(realtime.requests[0]).toMatchObject({ type: "chat.send", payload: { roomId: r, body: "", attachmentKey: "uploads/me/1.png" } });
+
+    attachments.failNext = new Error("Tipo de archivo no permitido");
+    expect(await store.send(r, "caption", file)).toBe(false);
+    expect(realtime.requests).toHaveLength(1);
+    expect(store.getSnapshot().error).toBe("Tipo de archivo no permitido");
   });
 
   test("presence events are tracked", () => {

@@ -1,4 +1,4 @@
-import type { CurrentUser, Message, Room, RoomWithMembers } from "./entities.ts";
+import type { AttachmentContentType, AttachmentMeta, CurrentUser, Message, Room, RoomWithMembers } from "./entities.ts";
 
 // Message ids are UUIDv7, so lexical order is chronological order.
 const byId = (a: Message, b: Message) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -48,4 +48,25 @@ export function canDeleteRoom(room: RoomWithMembers, user: CurrentUser | null): 
 
 export function roomTitle(room: Pick<Room, "kind" | "name">): string {
   return room.kind === "dm" ? room.name || "Mensaje directo" : room.name || "Grupo sin nombre";
+}
+
+// `satisfies` keeps this in lockstep with the backend's allowlist: a missing or extra type fails typecheck.
+const ATTACHMENT_TYPES = {
+  "image/jpeg": true,
+  "image/png": true,
+  "image/webp": true,
+  "image/gif": true,
+  "application/pdf": true,
+  "text/plain": true,
+} as const satisfies Record<AttachmentContentType, true>;
+
+/** Value for `<input type="file" accept>`. */
+export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_TYPES).join(",");
+
+export const isImageAttachment = (meta: Pick<AttachmentMeta, "contentType">) => meta.contentType.startsWith("image/");
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

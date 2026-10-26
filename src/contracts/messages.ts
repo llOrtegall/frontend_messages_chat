@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id, IsoDateTime } from "./common.ts";
+import { AttachmentMetaSchema } from "./attachments.ts";
 
 export const MessageSchema = z.strictObject({
   id: Id,
@@ -7,7 +8,7 @@ export const MessageSchema = z.strictObject({
   senderId: Id,
   body: z.string(),
   attachmentKey: z.string().nullable(),
-  attachmentMeta: z.record(z.string(), z.unknown()).nullable(),
+  attachmentMeta: AttachmentMetaSchema.nullable(),
   editedAt: IsoDateTime.nullable(),
   deletedAt: IsoDateTime.nullable(),
   createdAt: IsoDateTime,

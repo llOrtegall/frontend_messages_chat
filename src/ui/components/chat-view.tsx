@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "../../domain/entities.ts";
-import { canDeleteRoom, canEditMessage, roomTitle } from "../../domain/rules.ts";
+import { ATTACHMENT_ACCEPT, canDeleteRoom, canEditMessage, roomTitle } from "../../domain/rules.ts";
 import { useChat, useSession } from "../providers.tsx";
+import { MessageAttachment, PendingAttachment } from "./message-attachment.tsx";
 
 const EMPTY: Message[] = [];
 
@@ -15,7 +16,10 @@ export function ChatView({ roomId }: { roomId: string }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+  const [pending, setPending] = useState<{ file: File; previewUrl: string | null } | null>(null);
+  const pendingRef = useRef(pending);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = messages[roomId] ?? EMPTY;
   const page = history[roomId];
@@ -28,11 +32,29 @@ export function ChatView({ roomId }: { roomId: string }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [lastId]);
 
+  // The image preview is an object URL: release it when replaced and when the view unmounts.
+  useEffect(() => () => {
+    if (pendingRef.current?.previewUrl) URL.revokeObjectURL(pendingRef.current.previewUrl);
+  }, []);
+
+  const pickFile = (file: File | null) => {
+    if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
+    const next = file && { file, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null };
+    pendingRef.current = next;
+    setPending(next);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const canSend = (draft.trim() !== "" || pending !== null) && !sending && connection === "open";
+
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.trim() || sending) return;
+    if (!canSend) return;
     setSending(true);
-    if (await store.send(roomId, draft)) setDraft("");
+    if (await store.send(roomId, draft, pending?.file)) {
+      setDraft("");
+      pickFile(null);
+    }
     setSending(false);
   };
 
@@ -120,8 +142,9 @@ export function ChatView({ roomId }: { roomId: string }) {
                       <button onClick={() => setEditing(null)} className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs" aria-label="Cancelar">✕</button>
                     </div>
                   ) : (
-                    <div className={`px-3 py-2 rounded-2xl ${own ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-700 rounded-bl-sm"}`}>
-                      <p className="break-words text-sm leading-relaxed">{msg.body}</p>
+                    <div className={`px-3 py-2 rounded-2xl space-y-1 ${own ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-700 rounded-bl-sm"}`}>
+                      {msg.attachmentMeta && <MessageAttachment meta={msg.attachmentMeta} />}
+                      {msg.body && <p className="break-words text-sm leading-relaxed">{msg.body}</p>}
                     </div>
                   )}
                   <span className="text-[10px] text-slate-500 mt-0.5 px-1">
@@ -144,7 +167,24 @@ export function ChatView({ roomId }: { roomId: string }) {
         </div>
       )}
 
+      {pending && <PendingAttachment {...pending} onRemove={() => pickFile(null)} />}
+
       <form onSubmit={(e) => void send(e)} className="px-4 py-3 border-t border-slate-700 flex gap-2">
+        <label
+          title="Adjuntar archivo"
+          className="px-3 py-2 bg-slate-800 border border-slate-600 hover:bg-slate-700 rounded-xl cursor-pointer text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-500"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            className="sr-only"
+            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            disabled={sending}
+          />
+          <span aria-hidden>📎</span>
+          <span className="sr-only">Adjuntar archivo</span>
+        </label>
         <input
           type="text"
           value={draft}
@@ -160,10 +200,10 @@ export function ChatView({ roomId }: { roomId: string }) {
         />
         <button
           type="submit"
-          disabled={!draft.trim() || sending || connection !== "open"}
+          disabled={!canSend}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl transition text-sm font-medium"
         >
-          Enviar
+          {sending && pending ? "Subiendo…" : "Enviar"}
         </button>
       </form>
     </div>

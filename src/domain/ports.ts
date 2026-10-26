@@ -38,6 +38,11 @@ export interface MessageRepository {
   list(roomId: string, params?: { before?: string; limit?: number }): Promise<Message[]>;
 }
 
+/** Uploads a file straight to object storage; resolves to the key to attach to a message. */
+export interface AttachmentUploader {
+  upload(file: Blob): Promise<string>;
+}
+
 export type ConnectionStatus = "connecting" | "open" | "closed";
 
 /** Real-time channel (WebSocket). Room subscriptions survive reconnects. */

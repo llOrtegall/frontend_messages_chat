@@ -8,6 +8,8 @@ export type {
   RoomMember,
   RoomWithMembers,
   Message,
+  AttachmentMeta,
+  AttachmentContentType,
   ServerEvent,
   WsRequestType,
   WsRequestPayload,

@@ -1,5 +1,5 @@
 import type { Message, Room, RoomWithMembers, ServerEvent, WsAckPayload, WsRequestPayload, WsRequestType } from "../src/domain/entities.ts";
-import type { ConnectionStatus, MessageRepository, RealtimeGateway, RoomRepository } from "../src/domain/ports.ts";
+import type { AttachmentUploader, ConnectionStatus, MessageRepository, RealtimeGateway, RoomRepository } from "../src/domain/ports.ts";
 
 let seq = 0;
 /** UUIDv7-like ids that sort in creation order. */
@@ -69,3 +69,13 @@ export class FakeMessages implements MessageRepository {
 }
 
 export const flush = () => new Promise((r) => setTimeout(r, 0));
+
+export class FakeAttachments implements AttachmentUploader {
+  uploads: Blob[] = [];
+  failNext: Error | null = null;
+  async upload(file: Blob) {
+    if (this.failNext) { const e = this.failNext; this.failNext = null; throw e; }
+    this.uploads.push(file);
+    return `uploads/me/${this.uploads.length}.png`;
+  }
+}

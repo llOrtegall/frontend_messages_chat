@@ -1,5 +1,5 @@
 import type { Message, Room, RoomWithMembers, ServerEvent } from "../domain/entities.ts";
-import type { ConnectionStatus, MessageRepository, RealtimeGateway, RoomRepository } from "../domain/ports.ts";
+import type { AttachmentUploader, ConnectionStatus, MessageRepository, RealtimeGateway, RoomRepository } from "../domain/ports.ts";
 import { mergeMessages, removeMessage, touchRoom, upsertMessage, upsertRoom, sortRoomsByActivity } from "../domain/rules.ts";
 import { errorMessage, Store } from "./store.ts";
 
@@ -25,6 +25,7 @@ interface Deps {
   currentUserId: string;
   rooms: RoomRepository;
   messages: MessageRepository;
+  attachments: AttachmentUploader;
   realtime: RealtimeGateway;
 }
 
@@ -126,13 +127,14 @@ export class ChatStore extends Store<ChatState> {
     await this.loadPage(roomId, this.getSnapshot().messages[roomId]?.[0]?.id);
   }
 
-  async send(roomId: string, body: string): Promise<boolean> {
+  /** Sends text and/or a file (uploaded first). */
+  async send(roomId: string, body: string, file?: Blob): Promise<boolean> {
     const text = body.trim();
-    if (!text) return false;
-    return this.attempt(
-      () => this.deps.realtime.request("chat.send", { roomId, body: text, clientMessageId: crypto.randomUUID() }),
-      "No se pudo enviar el mensaje",
-    );
+    if (!text && !file) return false;
+    return this.attempt(async () => {
+      const attachmentKey = file ? await this.deps.attachments.upload(file) : undefined;
+      await this.deps.realtime.request("chat.send", { roomId, body: text, attachmentKey, clientMessageId: crypto.randomUUID() });
+    }, "No se pudo enviar el mensaje");
   }
 
   edit(messageId: string, body: string): Promise<boolean> {
