@@ -5,6 +5,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -82,7 +83,9 @@ export class HttpClient {
 
     if (!res.ok) {
       const body = ApiErrorSchema.safeParse(await res.json().catch(() => null));
-      throw new ApiError(res.status, body.success ? (body.data.detail ?? body.data.error) : `HTTP ${res.status}`);
+      throw body.success
+        ? new ApiError(res.status, body.data.error, body.data.code)
+        : new ApiError(res.status, `HTTP ${res.status}`);
     }
     if (!schema) return undefined as z.infer<S>;
 

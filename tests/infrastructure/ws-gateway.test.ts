@@ -29,7 +29,7 @@ function fakeBackend() {
         received.push(msg);
         const ts = Date.now();
         if (msg.type === "chat.send") ws.send(JSON.stringify({ type: "ack", refId: msg.refId, payload: { id: MSG, createdAt: new Date().toISOString() }, ts }));
-        if (msg.type === "chat.delete") ws.send(JSON.stringify({ type: "error", refId: msg.refId, payload: { code: "FORBIDDEN", message: "Not yours" }, ts }));
+        if (msg.type === "chat.delete") ws.send(JSON.stringify({ type: "error", refId: msg.refId, payload: { code: "access.forbidden", message: "Not yours" }, ts }));
       },
     },
   });
@@ -83,7 +83,7 @@ describe("WsRealtimeGateway", () => {
 
     const err = await g.request("chat.delete", { messageId: MSG }).catch((e) => e);
     expect(err).toBeInstanceOf(WsRequestError);
-    expect(err.code).toBe("FORBIDDEN");
+    expect(err.code).toBe("access.forbidden");
 
     const warn = console.warn;
     console.warn = () => {};

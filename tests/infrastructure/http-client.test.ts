@@ -16,11 +16,11 @@ function backend(opts: { refreshOk?: boolean; dataBody?: unknown } = {}) {
         calls.refresh++;
         await Bun.sleep(20);
         return opts.refreshOk === false
-          ? Response.json({ error: "Invalid refresh token" }, { status: 401 })
+          ? Response.json({ error: "Invalid refresh token", code: "auth.unauthorized" }, { status: 401 })
           : Response.json({ accessToken: "fresh" });
       }
       calls.data++;
-      if (req.headers.get("authorization") !== "Bearer fresh") return Response.json({ error: "Unauthorized" }, { status: 401 });
+      if (req.headers.get("authorization") !== "Bearer fresh") return Response.json({ error: "Unauthorized", code: "auth.unauthorized" }, { status: 401 });
       return Response.json(opts.dataBody ?? { value: 42 });
     },
   });
@@ -46,6 +46,7 @@ describe("HttpClient", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(401);
     expect(err.message).toBe("Unauthorized");
+    expect(err.code).toBe("auth.unauthorized");
     expect(expired).toBe(1);
   });
 
