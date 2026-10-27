@@ -19,11 +19,12 @@ jobs:
         with:
           bun-version: 1.4.4
 
-      # The backend's own dev stack: Postgres 17, Redis, RustFS, and the bucket (public read + CORS for :3001).
+      # The backend's own dev stack: Postgres 17, Redis, RustFS, the bucket (public read + CORS for :3001)
+      # and Mailpit for the verification emails sent on sign-up.
       - name: Backend services
         working-directory: .backend
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait postgres redis s3
+          docker compose -f docker-compose.dev.yml up -d --wait postgres redis s3 mailpit
           docker compose -f docker-compose.dev.yml run --rm s3-init
 
       - name: Start backend
