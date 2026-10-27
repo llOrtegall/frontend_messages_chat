@@ -51,6 +51,12 @@ y una pasada de axe (WCAG A/AA, sin violaciones serias). Requisitos:
 En CI lo ejecuta `.github/workflows/e2e.yml` (stack del backend con su compose, build de producción, trazas como
 artefacto si falla).
 
+## Despliegue
+
+`Dockerfile` construye el servidor standalone de Next (Node 24, usuario no root). La URL del API se fija al construir:
+`docker build --build-arg NEXT_PUBLIC_API_URL=https://chat.example.com -t chat-web .`. El stack completo (Caddy, API,
+web, Postgres, Redis) está en el backend: [`deploy/README.md`](https://github.com/llOrtegall/backend_messages_chat/blob/master/deploy/README.md).
+
 ## Arquitectura (hexagonal)
 
 ```
