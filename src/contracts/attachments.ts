@@ -38,6 +38,9 @@ export const PresignAttachmentResponseSchema = z.strictObject({
 });
 export type PresignAttachmentResponse = z.infer<typeof PresignAttachmentResponseSchema>;
 
+export const ConfirmAttachmentQuerySchema = z.object({ key: z.string().min(1).max(512) });
+export type ConfirmAttachmentQuery = z.infer<typeof ConfirmAttachmentQuerySchema>;
+
 export const ConfirmAttachmentResponseSchema = z.strictObject({
   publicUrl: z.url(),
   attachment: AttachmentMetaSchema,
