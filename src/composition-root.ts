@@ -1,6 +1,5 @@
 import { ChatStore } from "./application/chat-store.ts";
 import { SessionStore } from "./application/session-store.ts";
-import { HttpClient } from "./infrastructure/http/http-client.ts";
 import {
   RestAuthGateway,
   RestMessageRepository,
@@ -9,10 +8,11 @@ import {
 } from "./infrastructure/http/rest-adapters.ts";
 import { S3AttachmentUploader } from "./infrastructure/http/attachment-uploader.ts";
 import { WsRealtimeGateway } from "./infrastructure/realtime/ws-realtime-gateway.ts";
+import { ApiHttp } from "./modules/shared/infrastructure/ApiHttp.ts";
 
 /** The only place that knows the concrete adapters; the UI receives stores and ports. */
 export function createContainer(apiUrl: string) {
-  const http = new HttpClient(apiUrl);
+  const http = new ApiHttp(apiUrl);
   const auth = new RestAuthGateway(http);
   const rooms = new RestRoomRepository(http);
   const messages = new RestMessageRepository(http);

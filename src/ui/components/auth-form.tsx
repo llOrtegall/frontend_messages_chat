@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "../providers.tsx";
-import { errorMessage } from "../../application/store.ts";
+import { messageFor } from "../../i18n/errorMessages.ts";
 
 const input =
   "w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -26,7 +26,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       if (isLogin) await store.login(email, password);
       else await store.register(email, password, displayName);
     } catch (err) {
-      setError(errorMessage(err, isLogin ? "No se pudo iniciar sesión" : "No se pudo crear la cuenta"));
+      setError(messageFor(err, isLogin ? "session.login" : "session.register"));
       setSubmitting(false);
     }
   };

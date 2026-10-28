@@ -10,10 +10,10 @@ import {
   WsTicketResponseSchema,
 } from "../../contracts/index.ts";
 import type { AuthGateway, MessageRepository, RoomRepository, UserDirectory } from "../../domain/ports.ts";
-import type { HttpClient } from "./http-client.ts";
+import type { ApiHttp } from "../../modules/shared/infrastructure/ApiHttp.ts";
 
 export class RestAuthGateway implements AuthGateway {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: ApiHttp) {}
 
   async login(email: string, password: string) {
     const res = await this.http.request("POST", "/api/v1/auth/login", AuthResponseSchema, {
@@ -85,7 +85,7 @@ export class RestAuthGateway implements AuthGateway {
 }
 
 export class RestUserDirectory implements UserDirectory {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: ApiHttp) {}
 
   search({ query, cursor }: { query?: string; cursor?: string }) {
     return this.http.request("GET", "/api/v1/users", UserListResponseSchema, { query: { q: query?.trim(), cursor } });
@@ -93,7 +93,7 @@ export class RestUserDirectory implements UserDirectory {
 }
 
 export class RestRoomRepository implements RoomRepository {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: ApiHttp) {}
 
   async list() {
     return (await this.http.request("GET", "/api/v1/rooms", RoomListResponseSchema)).rooms;
@@ -129,7 +129,7 @@ export class RestRoomRepository implements RoomRepository {
 }
 
 export class RestMessageRepository implements MessageRepository {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: ApiHttp) {}
 
   async list(roomId: string, { before, limit }: { before?: string; limit?: number } = {}) {
     const res = await this.http.request("GET", `/api/v1/rooms/${roomId}/messages`, MessageListResponseSchema, {

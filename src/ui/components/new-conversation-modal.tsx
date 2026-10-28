@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { UserSummary } from "../../domain/entities.ts";
-import { errorMessage } from "../../application/store.ts";
+import { messageFor } from "../../i18n/errorMessages.ts";
 import { useChat } from "../providers.tsx";
 import { Modal } from "./modal.tsx";
 import { UserPicker } from "./user-picker.tsx";
@@ -25,7 +25,7 @@ export function NewConversationModal({ onClose }: { onClose: () => void }) {
       await action();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, "No se pudo crear la conversación"));
+      setError(messageFor(err, "room.create"));
       setBusy(false);
     }
   };

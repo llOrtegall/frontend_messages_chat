@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { errorMessage } from "../../application/store.ts";
+import { messageFor } from "../../i18n/errorMessages.ts";
 import { useSession } from "../providers.tsx";
 
 const input =
@@ -51,7 +51,7 @@ export function VerifyEmail() {
     started.current = true;
     store.verifyEmail(token).then(
       () => setResult({ ok: true, message: "Tu email está verificado." }),
-      (err) => setResult({ ok: false, message: errorMessage(err, "El enlace no es válido o ha caducado.") }),
+      (err) => setResult({ ok: false, message: messageFor(err, "email.verify") }),
     );
   }, [token, status, store]);
 
@@ -86,7 +86,7 @@ export function ForgotPasswordForm() {
       await store.requestPasswordReset(email);
       setState("sent");
     } catch (err) {
-      setError(errorMessage(err, "No se pudo enviar el enlace"));
+      setError(messageFor(err, "email.request_reset"));
       setState("idle");
     }
   };
@@ -133,7 +133,7 @@ export function ResetPasswordForm() {
       await store.resetPassword(token, password);
       setState("done");
     } catch (err) {
-      setError(errorMessage(err, "No se pudo cambiar la contraseña"));
+      setError(messageFor(err, "password.reset"));
       setState("idle");
     }
   };

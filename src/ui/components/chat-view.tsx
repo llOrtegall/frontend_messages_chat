@@ -6,13 +6,14 @@ import { ATTACHMENT_ACCEPT, canDeleteRoom, canEditMessage, roomTitle, senderName
 import { useChat, useSession } from "../providers.tsx";
 import { GroupMembersPanel } from "./group-members-panel.tsx";
 import { MessageAttachment, PendingAttachment } from "./message-attachment.tsx";
+import { messageFor } from "../../i18n/errorMessages.ts";
 
 const EMPTY: Message[] = [];
 
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 
 export function ChatView({ roomId }: { roomId: string }) {
-  const { store, rooms, selectedRoom, messages, history, typing, connection, error } = useChat();
+  const { store, rooms, selectedRoom, messages, history, typing, connection, failure } = useChat();
   const { user } = useSession();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -170,10 +171,10 @@ export function ChatView({ roomId }: { roomId: string }) {
         <div role="status" className="px-4 text-xs text-slate-400 italic min-h-5">
           {typers.length > 0 && (isGroup ? `${typers.map((u) => senderName(selectedRoom, u)).join(", ")} está escribiendo…` : "Está escribiendo…")}
         </div>
-        {error && (
+        {failure && (
           <div role="alert" className="mx-4 mb-2 px-3 py-2 bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg flex justify-between gap-2">
-            <span>{error}</span>
-            <button onClick={() => store.dismissError()} aria-label="Cerrar aviso">✕</button>
+            <span>{messageFor(failure.cause, failure.action)}</span>
+            <button onClick={() => store.dismissFailure()} aria-label="Cerrar aviso">✕</button>
           </div>
         )}
 

@@ -18,11 +18,3 @@ export class Store<S> {
     for (const l of this.listeners) l();
   }
 }
-
-/** Human-readable message from an API/WS error, with a fallback. */
-export function errorMessage(err: unknown, fallback: string): string {
-  if (err && typeof err === "object" && "message" in err && typeof err.message === "string" && err.message) {
-    return err.message;
-  }
-  return fallback;
-}

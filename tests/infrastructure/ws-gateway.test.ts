@@ -1,6 +1,7 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import type { ServerWebSocket } from "bun";
-import { WsRealtimeGateway, WsRequestError } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
+import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
+import { RequestFailedError } from "../../src/modules/shared/domain/errors/RequestFailedError.ts";
 import type { ConnectionStatus } from "../../src/domain/ports.ts";
 import type { ServerEvent } from "../../src/domain/entities.ts";
 
@@ -82,7 +83,7 @@ describe("WsRealtimeGateway", () => {
     expect(ack.id).toBe(MSG);
 
     const err = await g.request("chat.delete", { messageId: MSG }).catch((e) => e);
-    expect(err).toBeInstanceOf(WsRequestError);
+    expect(err).toBeInstanceOf(RequestFailedError);
     expect(err.code).toBe("access.forbidden");
 
     const warn = console.warn;
@@ -105,7 +106,7 @@ describe("WsRealtimeGateway", () => {
     const pending = g.request("chat.typing", { roomId: ROOM }); // the fake never acks typing
     be.sockets[0]!.close(1001, "going away");
     const err = await pending.catch((e) => e);
-    expect(err.code).toBe("DISCONNECTED");
+    expect(err.code).toBe(RequestFailedError.DISCONNECTED);
 
     await until(() => statuses.filter((s) => s === "open").length === 2);
     expect(be.tickets).toEqual(["ticket-1", "ticket-2"]);
@@ -117,6 +118,6 @@ describe("WsRealtimeGateway", () => {
     const be = fakeBackend();
     const { g } = makeGateway(be.url);
     const err = await g.request("chat.send", { roomId: ROOM, body: "x" }).catch((e) => e);
-    expect(err.code).toBe("DISCONNECTED");
+    expect(err.code).toBe(RequestFailedError.DISCONNECTED);
   });
 });

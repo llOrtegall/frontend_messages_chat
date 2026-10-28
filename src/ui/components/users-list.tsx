@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useChat, useSession } from "../providers.tsx";
 import { useUserSearch } from "../use-user-search.ts";
 import { Avatar } from "./avatar.tsx";
-import { errorMessage } from "../../application/store.ts";
+import { messageFor } from "../../i18n/errorMessages.ts";
 
 export function UsersList({ onOpened }: { onOpened: () => void }) {
   const { store, presence } = useChat();
@@ -24,7 +24,7 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
       await store.openDirect(userId);
       onOpened();
     } catch (err) {
-      setError(errorMessage(err, "No se pudo abrir la conversación"));
+      setError(messageFor(err, "room.open_direct"));
     } finally {
       setOpening(null);
     }

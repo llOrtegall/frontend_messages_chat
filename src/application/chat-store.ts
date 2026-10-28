@@ -9,7 +9,8 @@ import {
   sortRoomsByActivity,
   type ListedRoom,
 } from "../domain/rules.ts";
-import { errorMessage, Store } from "./store.ts";
+import type { FailedAction } from "../i18n/errorMessages.ts";
+import { Store } from "./store.ts";
 
 export interface ChatState {
   connection: ConnectionStatus;
@@ -26,7 +27,13 @@ export interface ChatState {
   typing: Record<string, string[]>;
   /** Presence learned from push events since start (overrides fetched isOnline). */
   presence: Record<string, boolean>;
-  error: string | null;
+  /** The last action that failed and why; the UI words it. */
+  failure: ChatFailure | null;
+}
+
+export interface ChatFailure {
+  readonly action: FailedAction;
+  readonly cause: unknown;
 }
 
 interface Deps {
@@ -54,7 +61,7 @@ const initialState: ChatState = {
   unread: {},
   typing: {},
   presence: {},
-  error: null,
+  failure: null,
 };
 
 const without = <T>(record: Record<string, T>, key: string): Record<string, T> =>
@@ -116,7 +123,7 @@ export class ChatStore extends Store<ChatState> {
       );
       this.setState({ roomsLoaded: true, unread });
     } catch (err) {
-      this.fail(err, "No se pudieron cargar las conversaciones");
+      this.fail(err, "rooms.load");
     }
   }
 
@@ -126,7 +133,7 @@ export class ChatStore extends Store<ChatState> {
       selectedRoomId: roomId,
       selectedRoom: null,
       unread: roomId ? without(s.unread, roomId) : s.unread,
-      error: null,
+      failure: null,
     }));
     if (!roomId) return;
 
@@ -154,40 +161,40 @@ export class ChatStore extends Store<ChatState> {
     return this.attempt(async () => {
       const attachmentKey = file ? await this.deps.attachments.upload(file) : undefined;
       await this.deps.realtime.request("chat.send", { roomId, body: text, attachmentKey, clientMessageId: crypto.randomUUID() });
-    }, "No se pudo enviar el mensaje");
+    }, "message.send");
   }
 
   edit(messageId: string, body: string): Promise<boolean> {
     return this.attempt(
       () => this.deps.realtime.request("chat.edit", { messageId, body: body.trim() }),
-      "No se pudo editar el mensaje",
+      "message.edit",
     );
   }
 
   deleteMessage(messageId: string): Promise<boolean> {
-    return this.attempt(() => this.deps.realtime.request("chat.delete", { messageId }), "No se pudo borrar el mensaje");
+    return this.attempt(() => this.deps.realtime.request("chat.delete", { messageId }), "message.delete");
   }
 
   // Membership changes come back as room.member_* / room.removed events, which update the state.
   addMember(roomId: string, userId: string): Promise<boolean> {
-    return this.attempt(() => this.deps.rooms.addMember(roomId, userId), "No se pudo añadir al miembro");
+    return this.attempt(() => this.deps.rooms.addMember(roomId, userId), "member.add");
   }
 
   removeMember(roomId: string, userId: string): Promise<boolean> {
-    return this.attempt(() => this.deps.rooms.removeMember(roomId, userId), "No se pudo quitar al miembro");
+    return this.attempt(() => this.deps.rooms.removeMember(roomId, userId), "member.remove");
   }
 
   leaveGroup(roomId: string): Promise<boolean> {
-    return this.attempt(() => this.deps.rooms.removeMember(roomId, this.deps.currentUserId), "No se pudo salir del grupo");
+    return this.attempt(() => this.deps.rooms.removeMember(roomId, this.deps.currentUserId), "group.leave");
   }
 
   setMemberRole(roomId: string, userId: string, role: "admin" | "member"): Promise<boolean> {
-    return this.attempt(() => this.deps.rooms.setMemberRole(roomId, userId, role), "No se pudo cambiar el rol");
+    return this.attempt(() => this.deps.rooms.setMemberRole(roomId, userId, role), "member.change_role");
   }
 
   deleteRoom(roomId: string): Promise<boolean> {
     // The room.removed event updates the list for every member, this tab included.
-    return this.attempt(() => this.deps.rooms.delete(roomId), "No se pudo eliminar la conversación");
+    return this.attempt(() => this.deps.rooms.delete(roomId), "room.delete");
   }
 
   /** Opens (creating if needed) the DM with a user and selects it. Throws on failure. */
@@ -214,8 +221,8 @@ export class ChatStore extends Store<ChatState> {
     this.deps.realtime.notify("chat.typing", { roomId });
   }
 
-  dismissError(): void {
-    this.setState({ error: null });
+  dismissFailure(): void {
+    this.setState({ failure: null });
   }
 
   private async resync(): Promise<void> {
@@ -249,7 +256,7 @@ export class ChatStore extends Store<ChatState> {
       this.setHistory(roomId, refresh ? { loading: false } : { loading: false, hasMore: page.length === this.pageSize });
     } catch (err) {
       this.setHistory(roomId, { loading: false });
-      this.fail(err, "No se pudieron cargar los mensajes");
+      this.fail(err, "messages.load");
     }
   }
 
@@ -264,18 +271,18 @@ export class ChatStore extends Store<ChatState> {
     this.deps.realtime.setRooms(rooms.map((r) => r.id));
   }
 
-  private async attempt(action: () => Promise<unknown>, fallback: string): Promise<boolean> {
+  private async attempt(operation: () => Promise<unknown>, action: FailedAction): Promise<boolean> {
     try {
-      await action();
+      await operation();
       return true;
     } catch (err) {
-      this.fail(err, fallback);
+      this.fail(err, action);
       return false;
     }
   }
 
-  private fail(err: unknown, fallback: string): void {
-    this.setState({ error: errorMessage(err, fallback) });
+  private fail(cause: unknown, action: FailedAction): void {
+    this.setState({ failure: { action, cause } });
   }
 
   private handleEvent(event: ServerEvent): void {

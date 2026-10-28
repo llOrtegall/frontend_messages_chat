@@ -1,6 +1,8 @@
 import { ServerFrameSchema, WsRequests, type ServerEvent, type ServerFrame } from "../../contracts/index.ts";
 import type { WsAckPayload, WsRequestPayload, WsRequestType } from "../../domain/entities.ts";
 import type { ConnectionStatus, RealtimeGateway } from "../../domain/ports.ts";
+import { RequestFailedError } from "../../modules/shared/domain/errors/RequestFailedError.ts";
+import { readContract } from "../../modules/shared/infrastructure/readContract.ts";
 
 interface Options {
   /** Backend base URL (http/https); the socket goes to `${url}/ws` with ws/wss. */
@@ -22,16 +24,6 @@ interface Pending {
 
 /** The backend accepts at most 50 room ids per subscribe/unsubscribe. */
 const SUBSCRIBE_CHUNK = 50;
-
-export class WsRequestError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "WsRequestError";
-  }
-}
 
 export class WsRealtimeGateway implements RealtimeGateway {
   private ws: WebSocket | null = null;
@@ -77,12 +69,12 @@ export class WsRealtimeGateway implements RealtimeGateway {
   }
 
   request<T extends WsRequestType>(type: T, payload: WsRequestPayload<T>): Promise<WsAckPayload<T>> {
-    if (!this.isOpen()) return Promise.reject(new WsRequestError("DISCONNECTED", "Sin conexión con el servidor"));
+    if (!this.isOpen()) return Promise.reject(new RequestFailedError(RequestFailedError.DISCONNECTED, null, "Not connected"));
     const refId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(refId);
-        reject(new WsRequestError("TIMEOUT", "El servidor no respondió a tiempo"));
+        reject(new RequestFailedError(RequestFailedError.TIMEOUT, null, `No answer to ${type}`));
       }, this.opts.requestTimeoutMs);
       this.pending.set(refId, { type, resolve: resolve as (v: unknown) => void, reject, timer });
       this.ws!.send(JSON.stringify({ type, refId, payload }));
@@ -147,7 +139,7 @@ export class WsRealtimeGateway implements RealtimeGateway {
     } catch {
       return;
     }
-    const parsed = ServerFrameSchema.safeParse(data);
+    const parsed = readContract(ServerFrameSchema, data);
     if (!parsed.success) {
       console.warn("Ignoring WS frame that does not match the contract", parsed.error.issues, data);
       return;
@@ -160,12 +152,12 @@ export class WsRealtimeGateway implements RealtimeGateway {
       this.pending.delete(frame.refId!);
       clearTimeout(pending.timer);
       if (frame.type === "error") {
-        pending.reject(new WsRequestError(frame.payload.code, frame.payload.message));
+        pending.reject(new RequestFailedError(frame.payload.code, null, frame.payload.message));
         return;
       }
-      const ack = WsRequests[pending.type].ack.safeParse(frame.payload);
+      const ack = readContract(WsRequests[pending.type].ack, frame.payload);
       if (ack.success) pending.resolve(ack.data);
-      else pending.reject(new WsRequestError("BAD_ACK", "Respuesta inesperada del servidor"));
+      else pending.reject(new RequestFailedError(RequestFailedError.UNEXPECTED_RESPONSE, null, `Unexpected ack to ${pending.type}`));
       return;
     }
     if (frame.type === "pong") return;
@@ -193,7 +185,7 @@ export class WsRealtimeGateway implements RealtimeGateway {
     this.heartbeatTimer = null;
     for (const p of this.pending.values()) {
       clearTimeout(p.timer);
-      p.reject(new WsRequestError("DISCONNECTED", "Se perdió la conexión con el servidor"));
+      p.reject(new RequestFailedError(RequestFailedError.DISCONNECTED, null, "Connection lost"));
     }
     this.pending.clear();
     this.setStatus("closed");

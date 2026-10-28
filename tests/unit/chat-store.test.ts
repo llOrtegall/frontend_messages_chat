@@ -1,6 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import { ChatStore } from "../../src/application/chat-store.ts";
 import { FakeAttachments, FakeMessages, FakeRealtime, FakeRooms, flush, iso, message, room } from "../fakes.ts";
+import { AttachmentTypeNotAllowedError } from "../../src/modules/attachment/domain/errors/AttachmentTypeNotAllowedError.ts";
+import { RequestFailedError } from "../../src/modules/shared/domain/errors/RequestFailedError.ts";
 
 const ME = "me";
 
@@ -187,11 +189,12 @@ describe("ChatStore", () => {
     expect(await store.send(r, "  hola  ")).toBe(true);
     expect(realtime.requests[0]).toMatchObject({ type: "chat.send", payload: { roomId: r, body: "hola" } });
 
-    realtime.failNextRequest = new Error("Not a member of this room");
+    const refusal = new RequestFailedError("room.not_member", null);
+    realtime.failNextRequest = refusal;
     expect(await store.send(r, "x")).toBe(false);
-    expect(store.getSnapshot().error).toBe("Not a member of this room");
-    store.dismissError();
-    expect(store.getSnapshot().error).toBeNull();
+    expect(store.getSnapshot().failure).toEqual({ action: "message.send", cause: refusal });
+    store.dismissFailure();
+    expect(store.getSnapshot().failure).toBeNull();
   });
 
   test("send with a file uploads it first and attaches the key", async () => {
@@ -203,10 +206,11 @@ describe("ChatStore", () => {
     expect(attachments.uploads).toEqual([file]);
     expect(realtime.requests[0]).toMatchObject({ type: "chat.send", payload: { roomId: r, body: "", attachmentKey: "uploads/me/1.png" } });
 
-    attachments.failNext = new Error("Tipo de archivo no permitido");
+    const rejected = new AttachmentTypeNotAllowedError("image/svg+xml");
+    attachments.failNext = rejected;
     expect(await store.send(r, "caption", file)).toBe(false);
     expect(realtime.requests).toHaveLength(1);
-    expect(store.getSnapshot().error).toBe("Tipo de archivo no permitido");
+    expect(store.getSnapshot().failure?.cause).toBe(rejected);
   });
 
   test("presence events are tracked", () => {

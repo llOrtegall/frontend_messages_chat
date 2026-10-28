@@ -1,5 +1,8 @@
 import { describe, test, expect, afterEach } from "bun:test";
-import { HttpClient } from "../../src/infrastructure/http/http-client.ts";
+import { ApiHttp } from "../../src/modules/shared/infrastructure/ApiHttp.ts";
+import { AttachmentTypeNotAllowedError } from "../../src/modules/attachment/domain/errors/AttachmentTypeNotAllowedError.ts";
+import { EmptyAttachmentError } from "../../src/modules/attachment/domain/errors/EmptyAttachmentError.ts";
+import { RequestFailedError } from "../../src/modules/shared/domain/errors/RequestFailedError.ts";
 import { S3AttachmentUploader } from "../../src/infrastructure/http/attachment-uploader.ts";
 
 let server: ReturnType<typeof Bun.serve> | null = null;
@@ -25,7 +28,7 @@ function backend(putStatus = 200) {
       return new Response(null, { status: putStatus });
     },
   });
-  return { calls, uploader: new S3AttachmentUploader(new HttpClient(`http://localhost:${server.port}`)) };
+  return { calls, uploader: new S3AttachmentUploader(new ApiHttp(`http://localhost:${server.port}`)) };
 }
 
 describe("S3AttachmentUploader", () => {
@@ -39,14 +42,14 @@ describe("S3AttachmentUploader", () => {
 
   test("refuses disallowed types before touching the network", async () => {
     const { calls, uploader } = backend();
-    await expect(uploader.upload(new Blob(["<svg/>"], { type: "image/svg+xml" }))).rejects.toThrow("Tipo de archivo no permitido");
-    await expect(uploader.upload(new Blob([], { type: "image/png" }))).rejects.toThrow("vacío");
+    await expect(uploader.upload(new Blob(["<svg/>"], { type: "image/svg+xml" }))).rejects.toThrow(AttachmentTypeNotAllowedError);
+    await expect(uploader.upload(new Blob([], { type: "image/png" }))).rejects.toThrow(EmptyAttachmentError);
     expect(calls.presign).toBeUndefined();
   });
 
   test("a failed bucket PUT is an error", async () => {
     const { calls, uploader } = backend(403);
-    await expect(uploader.upload(new Blob(["abc"], { type: "text/plain;charset=utf-8" }))).rejects.toThrow("No se pudo subir el archivo");
+    await expect(uploader.upload(new Blob(["abc"], { type: "text/plain;charset=utf-8" }))).rejects.toThrow(RequestFailedError);
     expect(calls.put?.contentType).toBe("text/plain");
   });
 });

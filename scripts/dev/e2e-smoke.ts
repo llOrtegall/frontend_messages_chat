@@ -6,9 +6,10 @@
 import { ChatStore } from "../../src/application/chat-store.ts";
 import { SessionStore } from "../../src/application/session-store.ts";
 import { S3AttachmentUploader } from "../../src/infrastructure/http/attachment-uploader.ts";
-import { HttpClient } from "../../src/infrastructure/http/http-client.ts";
 import { RestAuthGateway, RestMessageRepository, RestRoomRepository, RestUserDirectory } from "../../src/infrastructure/http/rest-adapters.ts";
 import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
+import { messageFor } from "../../src/i18n/errorMessages.ts";
+import { ApiHttp } from "../../src/modules/shared/infrastructure/ApiHttp.ts";
 
 const API = process.argv[2] ?? "http://localhost:3000";
 const ORIGIN = process.argv[3] ?? "http://localhost:3001";
@@ -31,7 +32,7 @@ function browserFetch() {
 }
 
 function client(email: string) {
-  const http = new HttpClient(API, browserFetch());
+  const http = new ApiHttp(API, browserFetch());
   const auth = new RestAuthGateway(http);
   // The PUT goes to the bucket: Origin (CORS) but no API cookies.
   const attachments = new S3AttachmentUploader(http, (url, init) =>
@@ -128,8 +129,12 @@ const pub = await fetch(att.url);
 check(pub.ok && pub.headers.get("content-type") === "image/png" && att.sizeBytes === png.size, "public URL serves the image");
 check(!(await aChat.send(roomId, "", new Blob(["<svg/>"], { type: "image/svg+xml" }))), "SVG is refused");
 
-check(!(await cChat.edit(msg.id, "nope")), "editing someone else's message is refused");
-check(cChat.getSnapshot().error !== null, "refusal surfaces as an error message");
+await aChat.send(roomId, "solo Alice edita esto (e2e)");
+await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.body === "solo Alice edita esto (e2e)"), "recipient gets a message to try editing");
+const alicesMessage = cChat.getSnapshot().messages[roomId]!.find((m) => m.body === "solo Alice edita esto (e2e)")!;
+check(!(await cChat.edit(alicesMessage.id, "nope")), "editing someone else's message is refused");
+const refusal = cChat.getSnapshot().failure;
+check(refusal !== null && messageFor(refusal.cause, refusal.action) === "Solo puedes editar tus propios mensajes.", "refusal surfaces with the backend's code, worded in Spanish");
 
 await until(() => aChat.getSnapshot().rooms.find((r) => r.id === roomId)?.peer?.id === carolId, "DM is titled with the other member");
 
@@ -146,7 +151,7 @@ check(!(await aChat.leaveGroup(groupId)), "owner can't leave the group");
 await cChat.leaveGroup(groupId);
 await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === groupId), "leaving removes the group for the member");
 await until(() => !aChat.getSnapshot().selectedRoom?.members.some((m) => m.userId === carolId), "owner sees the member leave");
-aChat.dismissError();
+aChat.dismissFailure();
 await aChat.deleteRoom(groupId);
 
 await aChat.deleteRoom(roomId);

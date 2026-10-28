@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { errorMessage } from "../../application/store.ts";
+import { messageFor } from "../../i18n/errorMessages.ts";
 import { AVATAR_ACCEPT } from "../../domain/rules.ts";
 import { useSession } from "../providers.tsx";
 import { Avatar } from "./avatar.tsx";
@@ -40,7 +40,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
       });
       onClose();
     } catch (err) {
-      setError(errorMessage(err, "No se pudo guardar el perfil"));
+      setError(messageFor(err, "profile.save"));
       setSaving(false);
     }
   };

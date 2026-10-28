@@ -2,67 +2,118 @@ import { describe, test, expect } from "bun:test";
 import { Glob } from "bun";
 import { dirname, join, relative, resolve } from "node:path";
 
-// Hexagonal dependency rule on import statements (same idea as the backend's):
-//   domain          → domain, contracts (type-only: entities are the wire types)
-//   application     → domain, application
-//   infrastructure  → domain, contracts, infrastructure + zod
-//   ui              → domain, application, ui, composition-root + react/next
-//   app (routes)    → ui + react/next
-//   contracts       → contracts + zod (vendored from the backend)
-// Only composition-root.ts may import infrastructure.
+// Dependency rules on import statements, checked against paths relative to src/.
+//
+// Modules (the skills' Clean Architecture), src/modules/<m>/:
+//   domain          → any module's domain; no packages
+//   application     → any module's domain or application (a use case may compose another's); no packages
+//   factory.ts      → anything in modules/ and config.ts: pure wiring
+//   infrastructure  → any module's domain, shared infrastructure, contracts + zod
+//   test/           → not checked (bun:test, faker)
+// i18n             → modules' domain only
+//
+// Legacy layers, removed as the refactor reaches them (F1–F6):
+//   domain → domain, contracts (type-only) · application → domain, application, i18n (type-only)
+//   infrastructure → domain, contracts, infrastructure, modules' domain and shared infrastructure + zod
+//   ui → domain, application, ui, composition-root, i18n, config.ts, modules' domain and factories + react/next
+//   app (routes) → ui + react/next · contracts → contracts + zod
+// Only composition-root.ts may import legacy infrastructure.
 
 const SRC = resolve(import.meta.dir, "../src");
 
 interface Rule {
-  layers: string[];
+  glob: string;
+  allows: (target: string, isTypeOnly: boolean) => boolean;
   packages: RegExp;
-  typeOnly?: string[];
+  skip?: (file: string) => boolean;
 }
 
 const NONE = /^$/;
 const REACT = /^(react|react-dom|next)(\/|$)/;
 
+const top = (path: string) => path.split("/")[0]!;
+const isModuleLayer = (path: string, layer: string) => new RegExp(`^modules/[^/]+/${layer}/`).test(path);
+const isModuleDomain = (path: string) => isModuleLayer(path, "domain");
+const isFactory = (path: string) => /^modules\/[^/]+\/application\/factory\.ts$/.test(path);
+const isModuleTest = (file: string) => isModuleLayer(file, "test");
+
 const RULES: Record<string, Rule> = {
-  domain: { layers: ["domain"], packages: NONE, typeOnly: ["contracts"] },
-  application: { layers: ["domain", "application"], packages: NONE },
-  infrastructure: { layers: ["domain", "contracts", "infrastructure"], packages: /^zod$/ },
-  ui: { layers: ["domain", "application", "ui", "composition-root.ts"], packages: REACT },
-  app: { layers: ["ui"], packages: REACT },
-  contracts: { layers: ["contracts"], packages: /^zod$/ },
+  "modules: domain": { glob: "modules/*/domain/**/*.ts", allows: isModuleDomain, packages: NONE },
+  "modules: application": {
+    glob: "modules/*/application/**/*.ts",
+    allows: (target) => isModuleDomain(target) || isModuleLayer(target, "application"),
+    packages: NONE,
+    skip: isFactory,
+  },
+  "modules: factory": {
+    glob: "modules/*/application/factory.ts",
+    allows: (target) => top(target) === "modules" || target === "config.ts",
+    packages: NONE,
+  },
+  "modules: infrastructure": {
+    glob: "modules/*/infrastructure/**/*.ts",
+    allows: (target) => isModuleDomain(target) || target.startsWith("modules/shared/infrastructure/") || top(target) === "contracts",
+    packages: /^zod$/,
+  },
+  i18n: { glob: "i18n/**/*.ts", allows: isModuleDomain, packages: NONE },
+  domain: {
+    glob: "domain/**/*.ts",
+    allows: (target, isTypeOnly) => top(target) === "domain" || (isTypeOnly && top(target) === "contracts"),
+    packages: NONE,
+  },
+  application: {
+    glob: "application/**/*.ts",
+    allows: (target, isTypeOnly) => ["domain", "application"].includes(top(target)) || (isTypeOnly && top(target) === "i18n"),
+    packages: NONE,
+  },
+  infrastructure: {
+    glob: "infrastructure/**/*.ts",
+    allows: (target) =>
+      ["domain", "contracts", "infrastructure"].includes(top(target)) ||
+      isModuleDomain(target) ||
+      target.startsWith("modules/shared/infrastructure/"),
+    packages: /^zod$/,
+  },
+  ui: {
+    glob: "ui/**/*.{ts,tsx}",
+    allows: (target) =>
+      ["domain", "application", "ui", "i18n", "composition-root.ts", "config.ts"].includes(top(target)) ||
+      isModuleDomain(target) ||
+      isFactory(target),
+    packages: REACT,
+  },
+  app: { glob: "app/**/*.{ts,tsx}", allows: (target) => top(target) === "ui", packages: REACT },
+  contracts: { glob: "contracts/**/*.ts", allows: (target) => top(target) === "contracts", packages: /^zod$/ },
 };
 
 const IMPORT_RE = /(?:^|\n)\s*(import|export)(\s+type)?\s[^;]*?from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
 
-/** Top-level folder (or root file) of src/ an import points to, or null for a package. */
-function targetLayer(file: string, spec: string): string | null {
-  if (spec.startsWith("@/")) return spec.slice(2).split("/")[0]!.replace(/^composition-root$/, "composition-root.ts");
+/** Path relative to src/ an import points to, or null for a package. */
+function targetOf(file: string, spec: string): string | null {
+  if (spec.startsWith("@/")) return spec.slice(2);
   if (!spec.startsWith(".")) return null;
-  return relative(SRC, resolve(SRC, dirname(file), spec)).split("/")[0]!;
+  return relative(SRC, resolve(SRC, dirname(file), spec));
 }
 
-async function violations(layer: string): Promise<string[]> {
-  const rule = RULES[layer]!;
+async function violations(rule: Rule): Promise<string[]> {
   const found: string[] = [];
-  for await (const file of new Glob(`${layer}/**/*.{ts,tsx}`).scan(SRC)) {
+  for await (const file of new Glob(rule.glob).scan(SRC)) {
+    if (isModuleTest(file) || rule.skip?.(file)) continue;
     const text = await Bun.file(join(SRC, file)).text();
-    for (const m of text.matchAll(IMPORT_RE)) {
-      const isType = Boolean(m[2]);
-      const spec = m[3] ?? m[4]!;
-      const target = targetLayer(file, spec);
-      if (target === null) {
-        if (!rule.packages.test(spec)) found.push(`${file} → ${spec}`);
-      } else if (!rule.layers.includes(target) && !(isType && rule.typeOnly?.includes(target))) {
-        found.push(`${file} → ${spec}`);
-      }
+    for (const match of text.matchAll(IMPORT_RE)) {
+      const spec = match[3] ?? match[4]!;
+      const target = targetOf(file, spec);
+      const allowed = target === null ? rule.packages.test(spec) : rule.allows(target, Boolean(match[2]));
+      if (!allowed) found.push(`${file} → ${spec}`);
     }
   }
   return found;
 }
 
 describe("architecture", () => {
-  for (const layer of Object.keys(RULES)) {
-    test(`${layer} only depends on allowed layers`, async () => {
-      expect(await violations(layer)).toEqual([]);
+  for (const [name, rule] of Object.entries(RULES)) {
+    test(`${name} only depends on what it may`, async () => {
+      expect(await violations(rule)).toEqual([]);
     });
   }
 
@@ -71,6 +122,15 @@ describe("architecture", () => {
     for await (const file of new Glob("ui/**/*.{ts,tsx}").scan(SRC)) {
       if (file === "ui/providers.tsx") continue;
       if ((await Bun.file(join(SRC, file)).text()).includes("composition-root")) offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  test("only config.ts reads the environment", async () => {
+    const offenders: string[] = [];
+    for await (const file of new Glob("**/*.{ts,tsx}").scan(SRC)) {
+      if (file === "config.ts" || isModuleTest(file)) continue;
+      if ((await Bun.file(join(SRC, file)).text()).includes("process.env")) offenders.push(file);
     }
     expect(offenders).toEqual([]);
   });

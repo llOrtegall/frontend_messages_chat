@@ -2,16 +2,15 @@
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { createContainer, type Container } from "../composition-root.ts";
+import { config } from "../config.ts";
 import type { ChatState, ChatStore } from "../application/chat-store.ts";
 import type { SessionState } from "../application/session-store.ts";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 const ContainerContext = createContext<Container | null>(null);
 const ChatContext = createContext<ChatStore | null>(null);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [container] = useState(() => createContainer(API_URL));
+  const [container] = useState(() => createContainer(config.apiUrl));
 
   useEffect(() => {
     void container.session.restore();
