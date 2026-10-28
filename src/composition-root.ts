@@ -1,25 +1,18 @@
 import { ChatStore } from "./application/chat-store.ts";
-import { SessionStore } from "./application/session-store.ts";
-import {
-  RestAuthGateway,
-  RestMessageRepository,
-  RestRoomRepository,
-  RestUserDirectory,
-} from "./infrastructure/http/rest-adapters.ts";
-import { S3AttachmentUploader } from "./infrastructure/http/attachment-uploader.ts";
+import type { ApiHttp } from "./modules/shared/infrastructure/ApiHttp.ts";
+import { attachmentModule } from "./modules/attachment/application/factory.ts";
+import { RestMessageRepository, RestRoomRepository, RestUserDirectory, RestWsTicketIssuer } from "./infrastructure/http/rest-adapters.ts";
 import { WsRealtimeGateway } from "./infrastructure/realtime/ws-realtime-gateway.ts";
-import { ApiHttp } from "./modules/shared/infrastructure/ApiHttp.ts";
 
-/** The only place that knows the concrete adapters; the UI receives stores and ports. */
-export function createContainer(apiUrl: string) {
-  const http = new ApiHttp(apiUrl);
-  const auth = new RestAuthGateway(http);
+/** Legacy wiring for the parts not yet moved to modules/ (users, rooms, messages, realtime). */
+export function createContainer(http: ApiHttp, apiUrl: string) {
   const rooms = new RestRoomRepository(http);
   const messages = new RestMessageRepository(http);
-  const attachments = new S3AttachmentUploader(http);
+  const tickets = new RestWsTicketIssuer(http);
+  const { uploadAttachment } = attachmentModule(http);
+  const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };
 
   return {
-    session: new SessionStore(auth, attachments),
     users: new RestUserDirectory(http),
     createChat: (currentUserId: string) =>
       new ChatStore({
@@ -27,7 +20,7 @@ export function createContainer(apiUrl: string) {
         rooms,
         messages,
         attachments,
-        realtime: new WsRealtimeGateway({ url: apiUrl, issueTicket: () => auth.issueWsTicket() }),
+        realtime: new WsRealtimeGateway({ url: apiUrl, issueTicket: () => tickets.issue() }),
       }),
   };
 }

@@ -1,85 +1,20 @@
 import {
-  AuthResponseSchema,
   MemberResponseSchema,
   MessageListResponseSchema,
   RoomDetailResponseSchema,
   RoomListResponseSchema,
   RoomResponseSchema,
   UserListResponseSchema,
-  UserResponseSchema,
   WsTicketResponseSchema,
 } from "../../contracts/index.ts";
-import type { AuthGateway, MessageRepository, RoomRepository, UserDirectory } from "../../domain/ports.ts";
+import type { MessageRepository, RoomRepository, UserDirectory } from "../../domain/ports.ts";
 import type { ApiHttp } from "../../modules/shared/infrastructure/ApiHttp.ts";
 
-export class RestAuthGateway implements AuthGateway {
+/** Single-use ticket for the WebSocket handshake (keeps the JWT out of URLs). */
+export class RestWsTicketIssuer {
   constructor(private readonly http: ApiHttp) {}
 
-  async login(email: string, password: string) {
-    const res = await this.http.request("POST", "/api/v1/auth/login", AuthResponseSchema, {
-      body: { email, password },
-      refreshOn401: false,
-    });
-    this.http.setAccessToken(res.accessToken);
-    return res.user;
-  }
-
-  async register(email: string, password: string, displayName: string) {
-    const res = await this.http.request("POST", "/api/v1/auth/register", AuthResponseSchema, {
-      body: { email, password, displayName },
-      refreshOn401: false,
-    });
-    this.http.setAccessToken(res.accessToken);
-    return res.user;
-  }
-
-  async restore() {
-    if (!(await this.http.refresh())) return null;
-    return this.me();
-  }
-
-  async logout() {
-    try {
-      await this.http.request("POST", "/api/v1/auth/logout", null, { body: {}, refreshOn401: false });
-    } finally {
-      this.http.setAccessToken(null);
-    }
-  }
-
-  async me() {
-    return (await this.http.request("GET", "/api/v1/auth/me", UserResponseSchema)).user;
-  }
-
-  async updateProfile(changes: { displayName?: string; avatarKey?: string | null }) {
-    return (await this.http.request("PATCH", "/api/v1/users/me", UserResponseSchema, { body: changes })).user;
-  }
-
-  async verifyEmail(token: string) {
-    await this.http.request("POST", "/api/v1/auth/verify-email/confirm", null, { body: { token }, refreshOn401: false });
-  }
-
-  async resendVerification() {
-    await this.http.request("POST", "/api/v1/auth/verify-email/request", null, { body: {} });
-  }
-
-  async requestPasswordReset(email: string) {
-    await this.http.request("POST", "/api/v1/auth/password-reset/request", null, { body: { email }, refreshOn401: false });
-  }
-
-  async resetPassword(token: string, newPassword: string) {
-    await this.http.request("POST", "/api/v1/auth/password-reset/confirm", null, {
-      body: { token, newPassword },
-      refreshOn401: false,
-    });
-    this.http.setAccessToken(null);
-  }
-
-  onExpired(listener: () => void) {
-    return this.http.onExpired(listener);
-  }
-
-  /** Single-use ticket for the WebSocket handshake (keeps the JWT out of URLs). */
-  async issueWsTicket(): Promise<string> {
+  async issue(): Promise<string> {
     return (await this.http.request("POST", "/api/v1/ws/ticket", WsTicketResponseSchema, { body: {} })).ticket;
   }
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { RoomMember, RoomWithMembers } from "../../domain/entities.ts";
 import { canAddMembers, canChangeRole, canLeave, canRemoveMember } from "../../domain/rules.ts";
-import { useChat, useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
+import { useChat } from "../providers.tsx";
 import { Avatar } from "./avatar.tsx";
 import { UserPicker } from "./user-picker.tsx";
 
@@ -13,7 +14,7 @@ const action = "text-xs px-2 py-0.5 rounded hover:bg-slate-700 disabled:opacity-
 
 export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; onClose: () => void }) {
   const { store, presence } = useChat();
-  const { user } = useSession();
+  const user = useSession().user?.toPrimitive() ?? null;
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!user) return null;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
 import { messageFor } from "../../i18n/errorMessages.ts";
 
 const input =
@@ -10,7 +10,7 @@ const input =
 
 /** Login or registration. On success the session changes and <SessionGate> redirects to /chat. */
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
-  const { store } = useSession();
+  const { signIn, signUp } = useSession();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,8 +23,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     setError("");
     setSubmitting(true);
     try {
-      if (isLogin) await store.login(email, password);
-      else await store.register(email, password, displayName);
+      if (isLogin) await signIn({ email, password });
+      else await signUp({ email, password, displayName });
     } catch (err) {
       setError(messageFor(err, isLogin ? "session.login" : "session.register"));
       setSubmitting(false);

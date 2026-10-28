@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useChat, useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
+import { useChat } from "../providers.tsx";
 import { useUserSearch } from "../use-user-search.ts";
 import { Avatar } from "./avatar.tsx";
 import { messageFor } from "../../i18n/errorMessages.ts";
 
 export function UsersList({ onOpened }: { onOpened: () => void }) {
   const { store, presence } = useChat();
-  const { user: me } = useSession();
+  const me = useSession().user?.toPrimitive() ?? null;
   const [query, setQuery] = useState("");
   const { users, loading, hasMore, loadMore, reload } = useUserSearch(query);
   const [opening, setOpening] = useState<string | null>(null);

@@ -1,5 +1,4 @@
 import type {
-  CurrentUser,
   Message,
   Room,
   RoomListItem,
@@ -10,27 +9,6 @@ import type {
   WsRequestPayload,
   WsRequestType,
 } from "./entities.ts";
-
-/** Session against the backend. The refresh token never reaches the client (HttpOnly cookie). */
-export interface AuthGateway {
-  login(email: string, password: string): Promise<CurrentUser>;
-  register(email: string, password: string, displayName: string): Promise<CurrentUser>;
-  /** Restores the session from the refresh cookie; null when there is none or it expired. */
-  restore(): Promise<CurrentUser | null>;
-  logout(): Promise<void>;
-  /** The signed-in user as the server has it now. */
-  me(): Promise<CurrentUser>;
-  /** `avatarKey`: an uploaded image (see AttachmentUploader); null removes the avatar. */
-  updateProfile(changes: { displayName?: string; avatarKey?: string | null }): Promise<CurrentUser>;
-  /** Emailed-token flows. The tokens are single use. */
-  verifyEmail(token: string): Promise<void>;
-  resendVerification(): Promise<void>;
-  requestPasswordReset(email: string): Promise<void>;
-  /** Also signs out every session of that user, this one included. */
-  resetPassword(token: string, newPassword: string): Promise<void>;
-  /** Called when the session can no longer be refreshed (expired or revoked elsewhere). */
-  onExpired(listener: () => void): () => void;
-}
 
 export interface UserDirectory {
   search(params: { query?: string; cursor?: string }): Promise<{ users: UserListItem[]; nextCursor: string | null }>;

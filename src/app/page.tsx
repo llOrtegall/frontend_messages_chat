@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "@/ui/providers";
+import { useSession } from "@/hooks/useSession";
 import { FullScreenMessage } from "@/ui/components/session-gate";
 
 export default function Home() {

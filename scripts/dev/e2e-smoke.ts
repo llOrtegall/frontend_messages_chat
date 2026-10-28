@@ -4,9 +4,10 @@
 //
 //   bun scripts/dev/e2e-smoke.ts [apiUrl] [origin]
 import { ChatStore } from "../../src/application/chat-store.ts";
-import { SessionStore } from "../../src/application/session-store.ts";
-import { S3AttachmentUploader } from "../../src/infrastructure/http/attachment-uploader.ts";
-import { RestAuthGateway, RestMessageRepository, RestRoomRepository, RestUserDirectory } from "../../src/infrastructure/http/rest-adapters.ts";
+import { RestMessageRepository, RestRoomRepository, RestUserDirectory, RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
+import { attachmentModule } from "../../src/modules/attachment/application/factory.ts";
+import { sessionModule } from "../../src/modules/session/application/factory.ts";
+import type { CurrentUser } from "../../src/modules/session/domain/CurrentUser.ts";
 import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
 import { messageFor } from "../../src/i18n/errorMessages.ts";
 import { ApiHttp } from "../../src/modules/shared/infrastructure/ApiHttp.ts";
@@ -33,12 +34,13 @@ function browserFetch() {
 
 function client(email: string) {
   const http = new ApiHttp(API, browserFetch());
-  const auth = new RestAuthGateway(http);
   // The PUT goes to the bucket: Origin (CORS) but no API cookies.
-  const attachments = new S3AttachmentUploader(http, (url, init) =>
-    fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } }),
-  );
-  const session = new SessionStore(auth, attachments);
+  const bucketFetch = (url: string, init: RequestInit) =>
+    fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } });
+  const session = sessionModule(http, bucketFetch);
+  const { uploadAttachment } = attachmentModule(http, bucketFetch);
+  const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };
+  const tickets = new RestWsTicketIssuer(http);
   const users = new RestUserDirectory(http);
   const chat = (userId: string) =>
     new ChatStore({
@@ -46,9 +48,9 @@ function client(email: string) {
       rooms: new RestRoomRepository(http),
       messages: new RestMessageRepository(http),
       attachments,
-      realtime: new WsRealtimeGateway({ url: API, issueTicket: () => auth.issueWsTicket() }),
+      realtime: new WsRealtimeGateway({ url: API, issueTicket: () => tickets.issue() }),
     });
-  return { email, http, auth, session, users, chat, attachments };
+  return { email, http, session, users, chat };
 }
 
 let failures = 0;
@@ -68,18 +70,17 @@ async function until(cond: () => boolean, label: string, ms = 5000) {
 const alice = client("alice@dev.local");
 const carol = client("carol@dev.local");
 
-await alice.session.login(alice.email, "password123");
-await carol.session.login(carol.email, "password123");
-check(alice.session.getSnapshot().status === "authenticated", "login (cookie session)");
+let aliceUser: CurrentUser = await alice.session.signIn({ email: alice.email, password: "password123" });
+const carolUser = await carol.session.signIn({ email: carol.email, password: "password123" });
+check(aliceUser.getEmail().toPrimitive() === alice.email, "login (cookie session)");
 
 // "Page reload": drop the in-memory access token and restore from the HttpOnly cookie only.
 alice.http.setAccessToken(null);
-const reloaded = new SessionStore(alice.auth, alice.attachments);
-await reloaded.restore();
-check(reloaded.getSnapshot().user?.email === alice.email, "restore session from refresh cookie");
+const restored = await alice.session.restoreSession();
+check(restored?.equals(aliceUser) ?? false, "restore session from refresh cookie");
 
-const aliceId = alice.session.getSnapshot().user!.id;
-const carolId = carol.session.getSnapshot().user!.id;
+const aliceId = aliceUser.getId().toPrimitive();
+const carolId = carolUser.getId().toPrimitive();
 const found = await alice.users.search({ query: "carol" });
 check(found.users.some((u) => u.id === carolId) && !JSON.stringify(found).includes("@"), "user search without emails");
 
@@ -157,20 +158,20 @@ await aChat.deleteRoom(groupId);
 await aChat.deleteRoom(roomId);
 await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === roomId) && cChat.getSnapshot().selectedRoomId === null, "room deletion closes it for the other member");
 
-const name = alice.session.getSnapshot().user!.displayName;
-await alice.session.updateProfile({ displayName: `${name} (e2e)`, avatar: png });
-const avatarUrl = alice.session.getSnapshot().user!.avatarUrl;
+const name = aliceUser.getDisplayName().toPrimitive();
+aliceUser = await alice.session.updateProfile(aliceUser, { displayName: `${name} (e2e)`, avatar: png });
+const avatarUrl = aliceUser.getAvatarUrl()?.toPrimitive() ?? null;
 check(Boolean(avatarUrl) && (await fetch(avatarUrl!)).ok, "profile: uploaded avatar is served");
 const seen = (await carol.users.search({ query: name })).users.find((u) => u.id === aliceId);
 check(seen?.avatarUrl === avatarUrl && seen?.displayName === `${name} (e2e)`, "profile: others see the new name and avatar");
-await alice.session.updateProfile({ displayName: name, avatar: null });
-check(alice.session.getSnapshot().user!.avatarUrl === null, "profile: avatar removed");
+aliceUser = await alice.session.updateProfile(aliceUser, { displayName: name, avatar: null });
+check(aliceUser.getAvatarUrl() === null, "profile: avatar removed");
 
 aChat.stop();
 cChat.stop();
-await alice.session.logout();
+await alice.session.signOut();
 check(!(await alice.http.refresh()), "logout revokes the refresh cookie");
-await carol.session.logout();
+await carol.session.signOut();
 
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

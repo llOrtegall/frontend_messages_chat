@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "../../domain/entities.ts";
 import { ATTACHMENT_ACCEPT, canDeleteRoom, canEditMessage, roomTitle, senderName } from "../../domain/rules.ts";
-import { useChat, useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
+import { useChat } from "../providers.tsx";
 import { GroupMembersPanel } from "./group-members-panel.tsx";
 import { MessageAttachment, PendingAttachment } from "./message-attachment.tsx";
 import { messageFor } from "../../i18n/errorMessages.ts";
@@ -14,7 +15,7 @@ const formatTime = (iso: string) => new Date(iso).toLocaleTimeString("es-ES", { 
 
 export function ChatView({ roomId }: { roomId: string }) {
   const { store, rooms, selectedRoom, messages, history, typing, connection, failure } = useChat();
-  const { user } = useSession();
+  const user = useSession().user?.toPrimitive() ?? null;
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);

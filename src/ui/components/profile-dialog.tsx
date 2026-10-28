@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { messageFor } from "../../i18n/errorMessages.ts";
-import { AVATAR_ACCEPT } from "../../domain/rules.ts";
-import { useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
+import { AttachmentContentType } from "../../modules/attachment/domain/AttachmentContentType.ts";
 import { Avatar } from "./avatar.tsx";
 import { Modal } from "./modal.tsx";
 
 export function ProfileDialog({ onClose }: { onClose: () => void }) {
-  const { user, store } = useSession();
-  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const { user, updateProfile } = useSession();
+  const [displayName, setDisplayName] = useState(user?.getDisplayName().toPrimitive() ?? "");
   // undefined = keep, null = remove, File = replace
   const [avatar, setAvatar] = useState<{ file: File | null; preview: string | null } | undefined>(undefined);
   const [saving, setSaving] = useState(false);
@@ -34,10 +34,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
     setSaving(true);
     setError("");
     try {
-      await store.updateProfile({
-        displayName: displayName.trim() !== user.displayName ? displayName : undefined,
-        avatar: avatar?.file ?? (avatar ? null : undefined),
-      });
+      await updateProfile({ displayName, avatar: avatar?.file ?? (avatar ? null : undefined) });
       onClose();
     } catch (err) {
       setError(messageFor(err, "profile.save"));
@@ -45,7 +42,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const shownAvatar = avatar === undefined ? user.avatarUrl : avatar.preview;
+  const shownAvatar = avatar === undefined ? (user.getAvatarUrl()?.toPrimitive() ?? null) : avatar.preview;
 
   return (
     <Modal labelledBy="profile-title" onClose={onClose}>
@@ -54,10 +51,10 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
         {error && <div role="alert" className="bg-red-900/40 border border-red-700 text-red-300 text-sm p-3 rounded-lg">{error}</div>}
 
         <div className="flex items-center gap-4">
-          <Avatar name={displayName || user.displayName} url={shownAvatar} size="lg" />
+          <Avatar name={displayName || user.getDisplayName().toPrimitive()} url={shownAvatar} size="lg" />
           <div className="flex flex-col gap-1 text-sm">
             <label className="cursor-pointer text-blue-400 hover:underline has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-500 rounded">
-              <input type="file" accept={AVATAR_ACCEPT} className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+              <input type="file" accept={AttachmentContentType.acceptedForAvatars()} className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
               Cambiar foto
             </label>
             {shownAvatar && (
@@ -79,7 +76,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             autoFocus
           />
         </label>
-        <p className="text-xs text-slate-400">{user.email}</p>
+        <p className="text-xs text-slate-400">{user.getEmail().toPrimitive()}</p>
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-sm">

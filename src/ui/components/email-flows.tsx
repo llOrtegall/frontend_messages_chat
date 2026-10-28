@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { messageFor } from "../../i18n/errorMessages.ts";
-import { useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
 
 const input =
   "w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -41,7 +41,7 @@ function useEmailedToken(): string | null {
 }
 
 export function VerifyEmail() {
-  const { store, status } = useSession();
+  const { confirmEmailVerification, status } = useSession();
   const token = useEmailedToken();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const started = useRef(false);
@@ -49,11 +49,11 @@ export function VerifyEmail() {
   useEffect(() => {
     if (!token || started.current || status === "loading") return;
     started.current = true;
-    store.verifyEmail(token).then(
+    confirmEmailVerification(token).then(
       () => setResult({ ok: true, message: "Tu email está verificado." }),
       (err) => setResult({ ok: false, message: messageFor(err, "email.verify") }),
     );
-  }, [token, status, store]);
+  }, [token, status, confirmEmailVerification]);
 
   const next = status === "authenticated" ? { href: "/chat", label: "Ir al chat" } : { href: "/login", label: "Iniciar sesión" };
   return (
@@ -73,7 +73,7 @@ export function VerifyEmail() {
 }
 
 export function ForgotPasswordForm() {
-  const { store } = useSession();
+  const { requestPasswordReset } = useSession();
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState("");
@@ -83,7 +83,7 @@ export function ForgotPasswordForm() {
     setState("sending");
     setError("");
     try {
-      await store.requestPasswordReset(email);
+      await requestPasswordReset(email);
       setState("sent");
     } catch (err) {
       setError(messageFor(err, "email.request_reset"));
@@ -116,7 +116,7 @@ export function ForgotPasswordForm() {
 }
 
 export function ResetPasswordForm() {
-  const { store } = useSession();
+  const { resetPassword } = useSession();
   const token = useEmailedToken();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -130,7 +130,7 @@ export function ResetPasswordForm() {
     setState("saving");
     setError("");
     try {
-      await store.resetPassword(token, password);
+      await resetPassword(token, password);
       setState("done");
     } catch (err) {
       setError(messageFor(err, "password.reset"));
@@ -169,14 +169,14 @@ export function ResetPasswordForm() {
 
 /** Shown in the chat while the email is unverified. */
 export function VerifyEmailBanner() {
-  const { user, store } = useSession();
+  const { user, requestEmailVerification } = useSession();
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  if (!user || user.emailVerifiedAt) return null;
+  if (!user || user.isEmailVerified()) return null;
 
   const resend = async () => {
     setState("sending");
     try {
-      await store.resendVerification();
+      await requestEmailVerification();
       setState("sent");
     } catch {
       setState("error");
@@ -185,7 +185,7 @@ export function VerifyEmailBanner() {
 
   return (
     <div role="status" className="px-4 py-2 bg-amber-900/40 border-b border-amber-700 text-amber-200 text-sm flex items-center gap-3">
-      <span className="flex-1">Verifica tu email ({user.email}) con el enlace que te enviamos.</span>
+      <span className="flex-1">Verifica tu email ({user.getEmail().toPrimitive()}) con el enlace que te enviamos.</span>
       {state === "sent" ? (
         <span>Enlace reenviado.</span>
       ) : (

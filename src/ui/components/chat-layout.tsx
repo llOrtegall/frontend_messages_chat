@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useChat, useSession } from "../providers.tsx";
+import { useSession } from "../../hooks/useSession.ts";
+import { useChat } from "../providers.tsx";
 import { ChatView } from "./chat-view.tsx";
 import { Avatar } from "./avatar.tsx";
 import { VerifyEmailBanner } from "./email-flows.tsx";
@@ -14,7 +15,7 @@ type Tab = "chats" | "users";
 
 export function ChatLayout() {
   const { selectedRoomId, unread, connection } = useChat();
-  const { store: session, user } = useSession();
+  const { signOut, user } = useSession();
   const [tab, setTab] = useState<Tab>("chats");
   const [showNew, setShowNew] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -54,13 +55,13 @@ export function ChatLayout() {
         <div className="p-3 border-t border-slate-700 space-y-2">
           {user && (
             <button onClick={() => setShowProfile(true)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-800 text-left" title="Editar perfil">
-              <Avatar name={user.displayName} url={user.avatarUrl} />
-              <span className="flex-1 min-w-0 truncate text-sm">{user.displayName}</span>
+              <Avatar name={user.getDisplayName().toPrimitive()} url={user.getAvatarUrl()?.toPrimitive() ?? null} />
+              <span className="flex-1 min-w-0 truncate text-sm">{user.getDisplayName().toPrimitive()}</span>
               <span className="text-xs text-slate-400">Perfil</span>
             </button>
           )}
           <button
-            onClick={() => void session.logout()}
+            onClick={() => void signOut()}
             className="w-full bg-slate-800 hover:bg-red-900/60 hover:text-red-400 text-slate-400 font-medium py-2 rounded-lg transition text-sm"
           >
             Cerrar sesión
