@@ -47,7 +47,7 @@ export class FakeRooms implements RoomRepository {
   details = new Map<string, RoomWithMembers>();
   unreadCounts = new Map<string, number>();
   async list() {
-    return this.rooms.map((r) => ({ ...r, unreadCount: this.unreadCounts.get(r.id) ?? 0, lastReadMessageId: null, peer: null }));
+    return this.rooms.map((r) => ({ ...r, unreadCount: this.unreadCounts.get(r.id) ?? 0, lastReadMessageId: null, mutedUntil: null, peer: null }));
   }
   async get(roomId: string) {
     const d = this.details.get(roomId);

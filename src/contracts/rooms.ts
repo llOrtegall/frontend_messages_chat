@@ -19,6 +19,8 @@ export type Room = z.infer<typeof RoomSchema>;
 export const RoomListItemSchema = RoomSchema.extend({
   unreadCount: z.number().int().min(0),
   lastReadMessageId: Id.nullable(),
+  /** Until when the requester silenced the room (no badge or alert meanwhile); past or null = not muted. */
+  mutedUntil: IsoDateTime.nullable(),
   /** DMs: the other member (for the title). Null for groups. */
   peer: UserSummarySchema.nullable(),
 });
@@ -74,3 +76,12 @@ export const RoomResponseSchema = z.strictObject({ room: RoomSchema });
 export const RoomDetailResponseSchema = z.strictObject({ room: RoomWithMembersSchema });
 export const RoomListResponseSchema = z.strictObject({ rooms: z.array(RoomListItemSchema) });
 export const MemberResponseSchema = z.strictObject({ member: RoomMemberSchema });
+
+/** PUT /rooms/:id/mute — only for the requester. `until` must be in the future; null unmutes. */
+export const MuteRoomSchema = z.object({
+  until: IsoDateTime.nullable(),
+});
+export type MuteRoomInput = z.infer<typeof MuteRoomSchema>;
+
+export const MuteRoomResponseSchema = z.strictObject({ mutedUntil: IsoDateTime.nullable() });
+export type MuteRoomResponse = z.infer<typeof MuteRoomResponseSchema>;
