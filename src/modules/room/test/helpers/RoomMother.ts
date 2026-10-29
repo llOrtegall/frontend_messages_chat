@@ -1,6 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { UserId } from "../../../user/domain/UserId.ts";
-import { ListedRoom, type ListedRoomPrimitive } from "../../domain/ListedRoom.ts";
+import { ListedRoom, type ListedRoomPrimitive, type NewRoomPrimitive } from "../../domain/ListedRoom.ts";
 import type { MemberRolePrimitive } from "../../domain/MemberRole.ts";
 import { Room, type RoomPrimitive } from "../../domain/Room.ts";
 import type { RoomMemberPrimitive } from "../../domain/RoomMember.ts";
@@ -42,6 +42,17 @@ export const direct = () => {
   const room = Room.fromPrimitive(createPrimitive({ kind: "dm", name: null, members: [me, other] }));
   return { room, me: room.getMembers().userIds()[0]!, other: room.getMembers().userIds()[1]! };
 };
+
+/** A room as push events and creation responses carry it. */
+export const newRoomPrimitive = (overrides: Partial<NewRoomPrimitive> = {}): NewRoomPrimitive => ({
+  id: faker.string.uuid(),
+  kind: "group",
+  name: faker.company.name().slice(0, 100),
+  createdBy: faker.string.uuid(),
+  lastMessageAt: null,
+  createdAt: faker.date.past().toISOString(),
+  ...overrides,
+});
 
 export const listedPrimitive = (overrides: Partial<ListedRoomPrimitive> = {}): ListedRoomPrimitive => ({
   id: faker.string.uuid(),

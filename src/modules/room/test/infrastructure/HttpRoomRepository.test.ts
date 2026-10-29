@@ -35,7 +35,7 @@ describe("HttpRoomRepository", () => {
   });
 
   it("joins a created group with nothing unread yet", async () => {
-    const { unreadCount: _u, lastReadMessageId: _r, mutedUntil: _m, peer: _p, ...room } = RoomMother.listedPrimitive();
+    const room = RoomMother.newRoomPrimitive();
     const { seen, repository } = respond(() => Response.json({ room }, { status: 201 }));
     const memberId = UserId.fromPrimitive(crypto.randomUUID());
 

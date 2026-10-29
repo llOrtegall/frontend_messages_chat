@@ -63,9 +63,7 @@ describe("ListedRoom", () => {
   });
 
   it("starts with nothing unread when joined from a push event or a creation", () => {
-    const { unreadCount: _unread, lastReadMessageId: _read, mutedUntil: _muted, peer: _peer, ...room } = RoomMother.listedPrimitive({ unreadCount: 3 });
-
-    expect(ListedRoom.joined(room).toPrimitive()).toMatchObject({ unreadCount: 0, lastReadMessageId: null, mutedUntil: null, peer: null });
+    expect(ListedRoom.joined(RoomMother.newRoomPrimitive()).toPrimitive()).toMatchObject({ unreadCount: 0, lastReadMessageId: null, mutedUntil: null, peer: null });
   });
 
   it("rejects a negative unread count", () => {
