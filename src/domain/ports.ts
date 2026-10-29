@@ -4,15 +4,10 @@ import type {
   RoomListItem,
   RoomWithMembers,
   ServerEvent,
-  UserListItem,
   WsAckPayload,
   WsRequestPayload,
   WsRequestType,
 } from "./entities.ts";
-
-export interface UserDirectory {
-  search(params: { query?: string; cursor?: string }): Promise<{ users: UserListItem[]; nextCursor: string | null }>;
-}
 
 export interface RoomRepository {
   /** My rooms with my read state. */

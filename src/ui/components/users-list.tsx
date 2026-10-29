@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useSession } from "../../hooks/useSession.ts";
 import { useChat } from "../providers.tsx";
-import { useUserSearch } from "../use-user-search.ts";
+import { useUserSearch } from "../../hooks/useUserSearch.ts";
+import type { User } from "../../modules/user/domain/User.ts";
 import { Avatar } from "./avatar.tsx";
 import { messageFor } from "../../i18n/errorMessages.ts";
 
@@ -11,12 +12,12 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
   const { store, presence } = useChat();
   const me = useSession().user?.toPrimitive() ?? null;
   const [query, setQuery] = useState("");
-  const { users, loading, hasMore, loadMore, reload } = useUserSearch(query);
+  const { found, isLoading, failure, hasMore, loadMore, reload } = useUserSearch(query);
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const isOnline = (u: { id: string; isOnline: boolean }) => presence[u.id] ?? u.isOnline;
-  const onlineCount = users.filter(isOnline).length;
+  const isOnline = (user: User) => presence[user.getId().toPrimitive()] ?? user.isOnline();
+  const onlineCount = found.countWhere(isOnline);
 
   const openDm = async (userId: string) => {
     setOpening(userId);
@@ -51,41 +52,47 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
           ↺
         </button>
       </div>
-      {error && <p role="alert" className="mx-3 mb-1 text-xs text-red-400">{error}</p>}
+      {(error || failure !== null) && (
+        <p role="alert" className="mx-3 mb-1 text-xs text-red-400">{error || messageFor(failure, "users.search")}</p>
+      )}
 
       <div className="flex-1 overflow-y-auto">
-        {loading && users.length === 0 ? (
+        {isLoading && found.isEmpty() ? (
           <div className="p-4 text-slate-400 text-sm">Cargando…</div>
-        ) : users.length === 0 ? (
+        ) : found.isEmpty() ? (
           <div className="p-4 text-slate-400 text-sm">{query.trim() ? "Ningún usuario coincide." : "No hay otros usuarios registrados."}</div>
         ) : (
           <ul className="space-y-0.5 p-2">
-            {users.map((u) => (
-              <li key={u.id}>
+            {found.map((user) => {
+              const id = user.getId().toPrimitive();
+              const name = user.getDisplayName().toPrimitive();
+              return (
+              <li key={id}>
                 <button
-                  onClick={() => void openDm(u.id)}
-                  disabled={opening === u.id}
+                  onClick={() => void openDm(id)}
+                  disabled={opening === id}
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-slate-800 text-left disabled:opacity-60"
                   title="Abrir mensaje directo"
                 >
-                  <Avatar name={u.displayName} url={u.avatarUrl} />
-                  <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(u) ? "bg-green-400" : "bg-slate-600"}`} aria-hidden />
+                  <Avatar name={name} url={user.getAvatarUrl()?.toPrimitive() ?? null} />
+                  <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(user) ? "bg-green-400" : "bg-slate-600"}`} aria-hidden />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-medium text-slate-200 truncate">{u.displayName}</span>
-                    <span className="block text-xs text-slate-400">{isOnline(u) ? "En línea" : "Desconectado"}</span>
+                    <span className="block text-sm font-medium text-slate-200 truncate">{name}</span>
+                    <span className="block text-xs text-slate-400">{isOnline(user) ? "En línea" : "Desconectado"}</span>
                   </span>
-                  <span className="shrink-0 text-xs text-blue-400">{opening === u.id ? "…" : "DM"}</span>
+                  <span className="shrink-0 text-xs text-blue-400">{opening === id ? "…" : "DM"}</span>
                 </button>
               </li>
-            ))}
+              );
+            })}
             {hasMore && (
               <li>
                 <button
                   onClick={() => void loadMore()}
-                  disabled={loading}
+                  disabled={isLoading}
                   className="w-full py-2 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50 transition"
                 >
-                  {loading ? "Cargando…" : "Cargar más"}
+                  {isLoading ? "Cargando…" : "Cargar más"}
                 </button>
               </li>
             )}

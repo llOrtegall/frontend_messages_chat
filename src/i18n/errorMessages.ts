@@ -56,6 +56,7 @@ const ACTION_FAILURES = {
   "email.verify": "El enlace no es válido o ha caducado.",
   "email.request_reset": "No se pudo enviar el enlace.",
   "password.reset": "No se pudo cambiar la contraseña.",
+  "users.search": "No se pudo buscar usuarios.",
   "rooms.load": "No se pudieron cargar las conversaciones.",
   "room.open_direct": "No se pudo abrir la conversación.",
   "room.create": "No se pudo crear la conversación.",

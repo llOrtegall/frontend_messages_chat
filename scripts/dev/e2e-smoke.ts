@@ -4,9 +4,11 @@
 //
 //   bun scripts/dev/e2e-smoke.ts [apiUrl] [origin]
 import { ChatStore } from "../../src/application/chat-store.ts";
-import { RestMessageRepository, RestRoomRepository, RestUserDirectory, RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
+import { RestMessageRepository, RestRoomRepository, RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
 import { attachmentModule } from "../../src/modules/attachment/application/factory.ts";
 import { sessionModule } from "../../src/modules/session/application/factory.ts";
+import { userModule } from "../../src/modules/user/application/factory.ts";
+import { UserId } from "../../src/modules/user/domain/UserId.ts";
 import type { CurrentUser } from "../../src/modules/session/domain/CurrentUser.ts";
 import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
 import { messageFor } from "../../src/i18n/errorMessages.ts";
@@ -41,7 +43,7 @@ function client(email: string) {
   const { uploadAttachment } = attachmentModule(http, bucketFetch);
   const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };
   const tickets = new RestWsTicketIssuer(http);
-  const users = new RestUserDirectory(http);
+  const users = userModule(http);
   const chat = (userId: string) =>
     new ChatStore({
       currentUserId: userId,
@@ -81,8 +83,8 @@ check(restored?.equals(aliceUser) ?? false, "restore session from refresh cookie
 
 const aliceId = aliceUser.getId().toPrimitive();
 const carolId = carolUser.getId().toPrimitive();
-const found = await alice.users.search({ query: "carol" });
-check(found.users.some((u) => u.id === carolId) && !JSON.stringify(found).includes("@"), "user search without emails");
+const found = await alice.users.searchUsers({ query: "carol", cursor: null });
+check(found.getUsers().includes(UserId.fromPrimitive(carolId)) && !JSON.stringify(found.toPrimitive()).includes("@"), "user search without emails");
 
 const aChat = alice.chat(aliceId);
 const cChat = carol.chat(carolId);
@@ -162,7 +164,7 @@ const name = aliceUser.getDisplayName().toPrimitive();
 aliceUser = await alice.session.updateProfile(aliceUser, { displayName: `${name} (e2e)`, avatar: png });
 const avatarUrl = aliceUser.getAvatarUrl()?.toPrimitive() ?? null;
 check(Boolean(avatarUrl) && (await fetch(avatarUrl!)).ok, "profile: uploaded avatar is served");
-const seen = (await carol.users.search({ query: name })).users.find((u) => u.id === aliceId);
+const seen = (await carol.users.searchUsers({ query: name, cursor: null })).getUsers().toPrimitive().find((user) => user.id === aliceId);
 check(seen?.avatarUrl === avatarUrl && seen?.displayName === `${name} (e2e)`, "profile: others see the new name and avatar");
 aliceUser = await alice.session.updateProfile(aliceUser, { displayName: name, avatar: null });
 check(aliceUser.getAvatarUrl() === null, "profile: avatar removed");

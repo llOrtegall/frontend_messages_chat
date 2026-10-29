@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { UserSummary } from "../../domain/entities.ts";
+import { UserList } from "../../modules/user/domain/UserList.ts";
 import { messageFor } from "../../i18n/errorMessages.ts";
 import { useChat } from "../providers.tsx";
 import { Modal } from "./modal.tsx";
@@ -14,7 +14,7 @@ export function NewConversationModal({ onClose }: { onClose: () => void }) {
   const { store } = useChat();
   const [tab, setTab] = useState<"dm" | "group">("dm");
   const [groupName, setGroupName] = useState("");
-  const [members, setMembers] = useState<UserSummary[]>([]);
+  const [members, setMembers] = useState(UserList.empty());
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -52,25 +52,25 @@ export function NewConversationModal({ onClose }: { onClose: () => void }) {
       {error && <div role="alert" className="bg-red-900/40 border border-red-700 text-red-300 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
       {tab === "dm" ? (
-        <UserPicker exclude={new Set()} onPick={(u) => void run(() => store.openDirect(u.id))} />
+        <UserPicker exclude={[]} onPick={(user) => void run(() => store.openDirect(user.getId().toPrimitive()))} />
       ) : (
         <form
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            void run(() => store.createGroup(groupName, members.map((m) => m.id)));
+            void run(() => store.createGroup(groupName, members.map((member) => member.getId().toPrimitive())));
           }}
         >
           <label className="block text-sm font-medium text-slate-300">
             Nombre del grupo
             <input className={`${input} mt-1`} value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="Ej: Equipo backend" maxLength={128} required />
           </label>
-          {members.length > 0 && (
+          {!members.isEmpty() && (
             <ul className="flex flex-wrap gap-1">
-              {members.map((m) => (
-                <li key={m.id} className="flex items-center gap-1 bg-slate-900 rounded-full pl-2 pr-1 py-0.5 text-xs text-slate-300">
-                  {m.displayName}
-                  <button type="button" onClick={() => setMembers((prev) => prev.filter((x) => x.id !== m.id))} className="text-slate-400 hover:text-red-400 px-1" aria-label={`Quitar a ${m.displayName}`}>
+              {members.map((member) => (
+                <li key={member.getId().toPrimitive()} className="flex items-center gap-1 bg-slate-900 rounded-full pl-2 pr-1 py-0.5 text-xs text-slate-300">
+                  {member.getDisplayName().toPrimitive()}
+                  <button type="button" onClick={() => setMembers((current) => current.excluding([member.getId()]))} className="text-slate-400 hover:text-red-400 px-1" aria-label={`Quitar a ${member.getDisplayName().toPrimitive()}`}>
                     ✕
                   </button>
                 </li>
@@ -78,7 +78,7 @@ export function NewConversationModal({ onClose }: { onClose: () => void }) {
             </ul>
           )}
           <div className="text-sm font-medium text-slate-300">Añadir miembros (opcional)</div>
-          <UserPicker exclude={new Set(members.map((m) => m.id))} onPick={(u) => setMembers((prev) => [...prev, u])} />
+          <UserPicker exclude={members.map((member) => member.getId())} onPick={(user) => setMembers((current) => current.append(UserList.create([user])))} />
           <button type="submit" disabled={!groupName.trim() || busy} className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:text-slate-400 text-white rounded-lg text-sm font-medium">
             {busy ? "Creando…" : "Crear grupo"}
           </button>

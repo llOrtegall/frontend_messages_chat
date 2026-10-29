@@ -1,10 +1,10 @@
 import { ChatStore } from "./application/chat-store.ts";
 import type { ApiHttp } from "./modules/shared/infrastructure/ApiHttp.ts";
 import { attachmentModule } from "./modules/attachment/application/factory.ts";
-import { RestMessageRepository, RestRoomRepository, RestUserDirectory, RestWsTicketIssuer } from "./infrastructure/http/rest-adapters.ts";
+import { RestMessageRepository, RestRoomRepository, RestWsTicketIssuer } from "./infrastructure/http/rest-adapters.ts";
 import { WsRealtimeGateway } from "./infrastructure/realtime/ws-realtime-gateway.ts";
 
-/** Legacy wiring for the parts not yet moved to modules/ (users, rooms, messages, realtime). */
+/** Legacy wiring for the parts not yet moved to modules/ (rooms, messages, realtime). */
 export function createContainer(http: ApiHttp, apiUrl: string) {
   const rooms = new RestRoomRepository(http);
   const messages = new RestMessageRepository(http);
@@ -13,7 +13,6 @@ export function createContainer(http: ApiHttp, apiUrl: string) {
   const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };
 
   return {
-    users: new RestUserDirectory(http),
     createChat: (currentUserId: string) =>
       new ChatStore({
         currentUserId,

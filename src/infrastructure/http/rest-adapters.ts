@@ -4,10 +4,9 @@ import {
   RoomDetailResponseSchema,
   RoomListResponseSchema,
   RoomResponseSchema,
-  UserListResponseSchema,
   WsTicketResponseSchema,
 } from "../../contracts/index.ts";
-import type { MessageRepository, RoomRepository, UserDirectory } from "../../domain/ports.ts";
+import type { MessageRepository, RoomRepository } from "../../domain/ports.ts";
 import type { ApiHttp } from "../../modules/shared/infrastructure/ApiHttp.ts";
 
 /** Single-use ticket for the WebSocket handshake (keeps the JWT out of URLs). */
@@ -16,14 +15,6 @@ export class RestWsTicketIssuer {
 
   async issue(): Promise<string> {
     return (await this.http.request("POST", "/api/v1/ws/ticket", WsTicketResponseSchema, { body: {} })).ticket;
-  }
-}
-
-export class RestUserDirectory implements UserDirectory {
-  constructor(private readonly http: ApiHttp) {}
-
-  search({ query, cursor }: { query?: string; cursor?: string }) {
-    return this.http.request("GET", "/api/v1/users", UserListResponseSchema, { query: { q: query?.trim(), cursor } });
   }
 }
 

@@ -7,6 +7,7 @@ import { useSession } from "../../hooks/useSession.ts";
 import { useChat } from "../providers.tsx";
 import { Avatar } from "./avatar.tsx";
 import { UserPicker } from "./user-picker.tsx";
+import { UserId } from "../../modules/user/domain/UserId.ts";
 
 const ROLE_LABEL: Record<RoomMember["role"], string> = { owner: "propietario", admin: "admin", member: "miembro" };
 
@@ -85,8 +86,8 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
           (adding ? (
             <div className="space-y-2">
               <UserPicker
-                exclude={new Set(room.members.map((m) => m.userId))}
-                onPick={(u) => void run(async () => (await store.addMember(room.id, u.id)) && (setAdding(false), true))}
+                exclude={room.members.map((m) => UserId.fromPrimitive(m.userId))}
+                onPick={(picked) => void run(async () => (await store.addMember(room.id, picked.getId().toPrimitive())) && (setAdding(false), true))}
               />
               <button onClick={() => setAdding(false)} className="text-xs text-slate-400 hover:text-slate-200">
                 Cancelar
