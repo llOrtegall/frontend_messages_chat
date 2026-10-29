@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "../../domain/entities.ts";
-import { ATTACHMENT_ACCEPT, canDeleteRoom, canEditMessage, roomTitle, senderName } from "../../domain/rules.ts";
+import { ATTACHMENT_ACCEPT, canEditMessage, roomTitle } from "../../domain/rules.ts";
+import { Room } from "../../modules/room/domain/Room.ts";
+import { UserId } from "../../modules/user/domain/UserId.ts";
 import { useSession } from "../../hooks/useSession.ts";
 import { useChat } from "../providers.tsx";
 import { GroupMembersPanel } from "./group-members-panel.tsx";
@@ -16,6 +18,8 @@ const formatTime = (iso: string) => new Date(iso).toLocaleTimeString("es-ES", { 
 export function ChatView({ roomId }: { roomId: string }) {
   const { store, rooms, selectedRoom, messages, history, typing, connection, failure } = useChat();
   const user = useSession().user?.toPrimitive() ?? null;
+  const openRoom = selectedRoom ? Room.fromPrimitive(selectedRoom) : null;
+  const senderName = (userId: string) => openRoom?.nameOf(UserId.fromPrimitive(userId))?.toPrimitive() ?? "Antiguo miembro";
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
@@ -95,7 +99,7 @@ export function ChatView({ roomId }: { roomId: string }) {
           >
             {connection === "open" ? "conectado" : connection === "connecting" ? "conectando…" : "sin conexión"}
           </span>
-          {selectedRoom && canDeleteRoom(selectedRoom, user) && (
+          {openRoom && user && openRoom.canBeDeletedBy(UserId.fromPrimitive(user.id)) && (
             <button onClick={() => void deleteRoom()} title="Eliminar conversación" aria-label="Eliminar conversación" className="text-slate-400 hover:text-red-400 transition text-sm px-1.5 py-0.5 rounded hover:bg-slate-800">
               🗑
             </button>
@@ -118,7 +122,7 @@ export function ChatView({ roomId }: { roomId: string }) {
             list.map((msg, i) => {
               const own = msg.senderId === user?.id;
               const showSender = isGroup && !own && list[i - 1]?.senderId !== msg.senderId;
-            const author = own ? "Tú" : isGroup ? senderName(selectedRoom, msg.senderId) : (listed?.peer?.displayName ?? "Contacto");
+            const author = own ? "Tú" : isGroup ? senderName(msg.senderId) : (listed?.peer?.displayName ?? "Contacto");
               const isEditing = editing?.id === msg.id;
               return (
                 <div key={msg.id} className={`group flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
@@ -133,7 +137,7 @@ export function ChatView({ roomId }: { roomId: string }) {
                     </div>
                   )}
                   <div className={`max-w-sm flex flex-col ${own ? "items-end" : "items-start"}`}>
-                    {showSender && <span aria-hidden className="text-xs text-purple-300 px-1 mb-0.5">{senderName(selectedRoom, msg.senderId)}</span>}
+                    {showSender && <span aria-hidden className="text-xs text-purple-300 px-1 mb-0.5">{senderName(msg.senderId)}</span>}
                     {isEditing ? (
                       <div className="flex gap-1 w-72">
                         <input
@@ -170,7 +174,7 @@ export function ChatView({ roomId }: { roomId: string }) {
         </div>
 
         <div role="status" className="px-4 text-xs text-slate-400 italic min-h-5">
-          {typers.length > 0 && (isGroup ? `${typers.map((u) => senderName(selectedRoom, u)).join(", ")} está escribiendo…` : "Está escribiendo…")}
+          {typers.length > 0 && (isGroup ? `${typers.map((u) => senderName(u)).join(", ")} está escribiendo…` : "Está escribiendo…")}
         </div>
         {failure && (
           <div role="alert" className="mx-4 mb-2 px-3 py-2 bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg flex justify-between gap-2">

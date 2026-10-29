@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { RoomMember, RoomWithMembers } from "../../domain/entities.ts";
-import { canAddMembers, canChangeRole, canLeave, canRemoveMember } from "../../domain/rules.ts";
+import { Room } from "../../modules/room/domain/Room.ts";
+import { RoomMember as Member } from "../../modules/room/domain/RoomMember.ts";
 import { useSession } from "../../hooks/useSession.ts";
 import { useChat } from "../providers.tsx";
 import { Avatar } from "./avatar.tsx";
@@ -15,10 +16,11 @@ const action = "text-xs px-2 py-0.5 rounded hover:bg-slate-700 disabled:opacity-
 
 export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; onClose: () => void }) {
   const { store, presence } = useChat();
-  const user = useSession().user?.toPrimitive() ?? null;
+  const me = useSession().user?.getId() ?? null;
+  const group = Room.fromPrimitive(room);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (!user) return null;
+  if (!me) return null;
 
   const run = async (fn: () => Promise<boolean>) => {
     setBusy(true);
@@ -50,13 +52,13 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
               <Avatar name={m.displayName} url={m.avatarUrl} size="sm" />
               <span className="flex-1 truncate">
                 {m.displayName}
-                {m.userId === user.id && <span className="text-slate-400"> (tú)</span>}
+                {m.userId === me.toPrimitive() && <span className="text-slate-400"> (tú)</span>}
               </span>
               <span className="text-[10px] uppercase tracking-wide text-slate-400">{ROLE_LABEL[m.role]}</span>
             </div>
-            {(canChangeRole(room, user, m) || canRemoveMember(room, user, m)) && (
+            {(group.canChangeRoleOf(Member.fromPrimitive(m), me) || group.canRemove(Member.fromPrimitive(m), me)) && (
               <div className="flex gap-1 mt-1 pl-4">
-                {canChangeRole(room, user, m) && (
+                {group.canChangeRoleOf(Member.fromPrimitive(m), me) && (
                   <button
                     disabled={busy}
                     className={`${action} text-slate-300`}
@@ -65,7 +67,7 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
                     {m.role === "admin" ? "Quitar admin" : "Hacer admin"}
                   </button>
                 )}
-                {canRemoveMember(room, user, m) && (
+                {group.canRemove(Member.fromPrimitive(m), me) && (
                   <button
                     disabled={busy}
                     className={`${action} text-red-400`}
@@ -82,7 +84,7 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
       </ul>
 
       <div className="p-3 border-t border-slate-700 space-y-2">
-        {canAddMembers(room, user) &&
+        {group.canAddMembers(me) &&
           (adding ? (
             <div className="space-y-2">
               <UserPicker
@@ -98,7 +100,7 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
               + Añadir miembro
             </button>
           ))}
-        {canLeave(room, user) && (
+        {group.canLeave(me) && (
           <button onClick={leave} disabled={busy} className="w-full py-1.5 bg-slate-800 hover:bg-red-900/60 text-red-400 rounded-lg text-sm">
             Salir del grupo
           </button>

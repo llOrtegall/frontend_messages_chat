@@ -4,7 +4,9 @@
 //
 //   bun scripts/dev/e2e-smoke.ts [apiUrl] [origin]
 import { ChatStore } from "../../src/application/chat-store.ts";
-import { RestMessageRepository, RestRoomRepository, RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
+import { legacyRoomPort } from "../../src/composition-root.ts";
+import { RestMessageRepository, RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
+import { roomModule } from "../../src/modules/room/application/factory.ts";
 import { attachmentModule } from "../../src/modules/attachment/application/factory.ts";
 import { sessionModule } from "../../src/modules/session/application/factory.ts";
 import { userModule } from "../../src/modules/user/application/factory.ts";
@@ -47,7 +49,7 @@ function client(email: string) {
   const chat = (userId: string) =>
     new ChatStore({
       currentUserId: userId,
-      rooms: new RestRoomRepository(http),
+      rooms: legacyRoomPort(roomModule(http)),
       messages: new RestMessageRepository(http),
       attachments,
       realtime: new WsRealtimeGateway({ url: API, issueTicket: () => tickets.issue() }),
