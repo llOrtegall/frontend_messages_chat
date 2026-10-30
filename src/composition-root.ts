@@ -1,9 +1,10 @@
 import { ChatStore } from "./application/chat-store.ts";
-import type { RoomRepository } from "./domain/ports.ts";
+import type { MessageRepository, RoomRepository } from "./domain/ports.ts";
 import type { ApiHttp } from "./modules/shared/infrastructure/ApiHttp.ts";
 import { attachmentModule } from "./modules/attachment/application/factory.ts";
+import { messageModule, type MessageModule } from "./modules/message/application/factory.ts";
 import { roomModule, type RoomModule } from "./modules/room/application/factory.ts";
-import { RestMessageRepository, RestWsTicketIssuer } from "./infrastructure/http/rest-adapters.ts";
+import { RestWsTicketIssuer } from "./infrastructure/http/rest-adapters.ts";
 import { WsRealtimeGateway } from "./infrastructure/realtime/ws-realtime-gateway.ts";
 
 /** The ChatStore still keeps the contract's plain shapes; it goes away with the chat module (F5). */
@@ -21,10 +22,17 @@ export const legacyRoomPort = (rooms: RoomModule): RoomRepository => ({
   setMemberRole: async (roomId, userId, role) => void (await rooms.changeMemberRole({ roomId, userId, role })),
 });
 
-/** Legacy wiring for the parts not yet moved to modules/ (messages, realtime). */
+export const legacyMessagePort = (messages: MessageModule, pageSize: number): MessageRepository => ({
+  list: async (roomId, { before, limit } = {}) =>
+    [...(await messages.listMessages({ roomId, before: before ?? null, limit: limit ?? pageSize })).toPrimitive()].map((message) => ({ ...message })),
+});
+
+/** Legacy wiring for the part not yet moved to modules/ (realtime and the chat state). */
+const CHAT_PAGE_SIZE = 50;
+
 export function createContainer(http: ApiHttp, apiUrl: string) {
   const rooms = legacyRoomPort(roomModule(http));
-  const messages = new RestMessageRepository(http);
+  const messages = legacyMessagePort(messageModule(http), CHAT_PAGE_SIZE);
   const tickets = new RestWsTicketIssuer(http);
   const { uploadAttachment } = attachmentModule(http);
   const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };

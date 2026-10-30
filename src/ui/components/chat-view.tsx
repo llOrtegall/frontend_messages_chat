@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "../../domain/entities.ts";
-import { ATTACHMENT_ACCEPT, canEditMessage, roomTitle } from "../../domain/rules.ts";
+import { roomTitle } from "../../domain/rules.ts";
+import { AttachmentContentType } from "../../modules/attachment/domain/AttachmentContentType.ts";
+import { Message as ChatMessage } from "../../modules/message/domain/Message.ts";
 import { Room } from "../../modules/room/domain/Room.ts";
 import { UserId } from "../../modules/user/domain/UserId.ts";
 import { useSession } from "../../hooks/useSession.ts";
@@ -124,9 +126,11 @@ export function ChatView({ roomId }: { roomId: string }) {
               const showSender = isGroup && !own && list[i - 1]?.senderId !== msg.senderId;
             const author = own ? "Tú" : isGroup ? senderName(msg.senderId) : (listed?.peer?.displayName ?? "Contacto");
               const isEditing = editing?.id === msg.id;
+              const message = ChatMessage.fromPrimitive(msg);
+              const attachment = message.getAttachment();
               return (
                 <div key={msg.id} className={`group flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
-                  {canEditMessage(msg, user) && !isEditing && (
+                  {user && message.canBeEditedBy(UserId.fromPrimitive(user.id)) && !isEditing && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition mb-1">
                       <button onClick={() => setEditing({ id: msg.id, body: msg.body })} className="text-xs text-slate-400 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Editar" aria-label="Editar mensaje">
                         ✎
@@ -157,7 +161,7 @@ export function ChatView({ roomId }: { roomId: string }) {
                     ) : (
                       <div className={`px-3 py-2 rounded-2xl space-y-1 ${own ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-700 rounded-bl-sm"}`}>
                         <span className="sr-only">{author}: </span>
-                      {msg.attachmentMeta && <MessageAttachment meta={msg.attachmentMeta} />}
+                      {attachment && <MessageAttachment attachment={attachment} />}
                         {msg.body && <p className="break-words text-sm leading-relaxed">{msg.body}</p>}
                       </div>
                     )}
@@ -193,7 +197,7 @@ export function ChatView({ roomId }: { roomId: string }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept={ATTACHMENT_ACCEPT}
+              accept={AttachmentContentType.acceptedForAttachments()}
               className="sr-only"
               onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               disabled={sending}
