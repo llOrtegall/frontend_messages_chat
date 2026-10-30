@@ -1,5 +1,6 @@
 import { InvalidRoomError } from "./errors/InvalidRoomError.ts";
 import { ListedRoom, type ListedRoomPrimitive } from "./ListedRoom.ts";
+import type { RoomId } from "./RoomId.ts";
 
 export type ListedRoomListPrimitive = readonly ListedRoomPrimitive[];
 
@@ -24,6 +25,36 @@ export class ListedRoomList {
     if (rooms.some((room, index) => rooms.findIndex((other) => other.equals(room)) !== index)) {
       throw new InvalidRoomError("the same room is listed twice");
     }
+  }
+
+  find(id: RoomId): ListedRoom | null {
+    return this.rooms.find((room) => room.getId().equals(id)) ?? null;
+  }
+
+  /** Adds the room or replaces the stored version of it. */
+  upsert(room: ListedRoom): ListedRoomList {
+    return ListedRoomList.create([...this.rooms.filter((other) => !other.equals(room)), room]);
+  }
+
+  /** Changes one room; does nothing when it is not listed. */
+  update(id: RoomId, change: (room: ListedRoom) => ListedRoom): ListedRoomList {
+    return ListedRoomList.create(this.rooms.map((room) => (room.getId().equals(id) ? change(room) : room)));
+  }
+
+  remove(id: RoomId): ListedRoomList {
+    return ListedRoomList.create(this.rooms.filter((room) => !room.getId().equals(id)));
+  }
+
+  roomIds(): RoomId[] {
+    return this.rooms.map((room) => room.getId());
+  }
+
+  hasUnread(): boolean {
+    return this.rooms.some((room) => room.getUnreadCount() > 0);
+  }
+
+  isEmpty(): boolean {
+    return this.rooms.length === 0;
   }
 
   count(): number {

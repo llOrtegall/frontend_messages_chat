@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "@/hooks/useSession";
-import { ChatProvider } from "@/ui/providers";
+import { ChatProvider } from "@/components/ChatProvider";
 import { ChatLayout } from "@/ui/components/chat-layout";
 import { SessionGate } from "@/ui/components/session-gate";
 

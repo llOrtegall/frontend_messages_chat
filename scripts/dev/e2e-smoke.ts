@@ -3,19 +3,17 @@
 // Origin header, so the HttpOnly refresh cookie and the WS ticket flow are exercised for real.
 //
 //   bun scripts/dev/e2e-smoke.ts [apiUrl] [origin]
-import { ChatStore } from "../../src/application/chat-store.ts";
-import { legacyMessagePort, legacyRoomPort } from "../../src/composition-root.ts";
-import { RestWsTicketIssuer } from "../../src/infrastructure/http/rest-adapters.ts";
+import { ChatSession } from "../../src/hooks/ChatSession.ts";
+import { messageFor } from "../../src/i18n/errorMessages.ts";
+import { chatModule } from "../../src/modules/chat/application/factory.ts";
 import { messageModule } from "../../src/modules/message/application/factory.ts";
 import { roomModule } from "../../src/modules/room/application/factory.ts";
-import { attachmentModule } from "../../src/modules/attachment/application/factory.ts";
+import { RoomId } from "../../src/modules/room/domain/RoomId.ts";
 import { sessionModule } from "../../src/modules/session/application/factory.ts";
+import type { CurrentUser } from "../../src/modules/session/domain/CurrentUser.ts";
+import { ApiHttp } from "../../src/modules/shared/infrastructure/ApiHttp.ts";
 import { userModule } from "../../src/modules/user/application/factory.ts";
 import { UserId } from "../../src/modules/user/domain/UserId.ts";
-import type { CurrentUser } from "../../src/modules/session/domain/CurrentUser.ts";
-import { WsRealtimeGateway } from "../../src/infrastructure/realtime/ws-realtime-gateway.ts";
-import { messageFor } from "../../src/i18n/errorMessages.ts";
-import { ApiHttp } from "../../src/modules/shared/infrastructure/ApiHttp.ts";
 
 const API = process.argv[2] ?? "http://localhost:3000";
 const ORIGIN = process.argv[3] ?? "http://localhost:3001";
@@ -43,18 +41,9 @@ function client(email: string) {
   const bucketFetch = (url: string, init: RequestInit) =>
     fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } });
   const session = sessionModule(http, bucketFetch);
-  const { uploadAttachment } = attachmentModule(http, bucketFetch);
-  const attachments = { upload: async (file: Blob) => (await uploadAttachment(file)).toPrimitive() };
-  const tickets = new RestWsTicketIssuer(http);
   const users = userModule(http);
   const chat = (userId: string) =>
-    new ChatStore({
-      currentUserId: userId,
-      rooms: legacyRoomPort(roomModule(http)),
-      messages: legacyMessagePort(messageModule(http), 50),
-      attachments,
-      realtime: new WsRealtimeGateway({ url: API, issueTicket: () => tickets.issue() }),
-    });
+    new ChatSession(userId, { chat: chatModule(http, API, bucketFetch), rooms: roomModule(http), messages: messageModule(http) });
   return { email, http, session, users, chat };
 }
 
@@ -89,79 +78,86 @@ const carolId = carolUser.getId().toPrimitive();
 const found = await alice.users.searchUsers({ query: "carol", cursor: null });
 check(found.getUsers().includes(UserId.fromPrimitive(carolId)) && !JSON.stringify(found.toPrimitive()).includes("@"), "user search without emails");
 
+const of = (session: ChatSession) => session.getSnapshot().chat;
+const messagesIn = (session: ChatSession, roomId: string) => of(session).historyOf(RoomId.fromPrimitive(roomId))?.getMessages().toPrimitive() ?? [];
+const roomsOf = (session: ChatSession) => of(session).getRooms()?.toPrimitive() ?? [];
+const unreadIn = (session: ChatSession, roomId: string) => of(session).getRooms()?.find(RoomId.fromPrimitive(roomId))?.getUnreadCount() ?? 0;
+const openRoomOf = (session: ChatSession) => of(session).getOpenRoom()?.toPrimitive() ?? null;
+
 const aChat = alice.chat(aliceId);
 const cChat = carol.chat(carolId);
 aChat.start();
 cChat.start();
-await until(() => aChat.getSnapshot().connection === "open" && cChat.getSnapshot().connection === "open", "WS connected via ticket");
-await until(() => aChat.getSnapshot().roomsLoaded, "rooms loaded on connect");
+await until(() => of(aChat).isConnected() && of(cChat).isConnected(), "WS connected via ticket");
+await until(() => of(aChat).getRooms() !== null, "rooms loaded on connect");
 
 const roomId = await aChat.openDirect(carolId);
-await until(() => cChat.getSnapshot().rooms.some((r) => r.id === roomId), "carol gets room.added for the new DM");
+await until(() => roomsOf(cChat).some((room) => room.id === roomId), "carol gets room.added for the new DM");
+await until(() => of(aChat).getOpenRoomId()?.toPrimitive() === roomId, "the new DM is open for its opener");
 
 await Bun.sleep(200); // let carol's subscription to the new room reach the server
 await aChat.send(roomId, "hola carol (e2e)");
-await until(() => (aChat.getSnapshot().messages[roomId] ?? []).some((m) => m.body === "hola carol (e2e)"), "sender sees own message");
-await until(() => (cChat.getSnapshot().unread[roomId] ?? 0) === 1, "recipient unread count");
+await until(() => messagesIn(aChat, roomId).some((message) => message.body === "hola carol (e2e)"), "sender sees own message");
+await until(() => unreadIn(cChat, roomId) === 1, "recipient unread count");
 
 // "Reload" (fresh store, REST only): the unread count comes from the server.
 const reloadedUnread = async () => {
   const fresh = carol.chat(carolId);
   await fresh.reloadRooms();
-  return fresh.getSnapshot().unread[roomId] ?? 0;
+  return unreadIn(fresh, roomId);
 };
 check((await reloadedUnread()) === 1, "unread count survives a reload");
 
 await cChat.selectRoom(roomId);
-const msg = cChat.getSnapshot().messages[roomId]!.find((m) => m.body === "hola carol (e2e)")!;
-check(Boolean(msg) && !cChat.getSnapshot().unread[roomId], "open room loads history and clears unread");
+const msg = messagesIn(cChat, roomId).find((message) => message.body === "hola carol (e2e)")!;
+check(Boolean(msg) && unreadIn(cChat, roomId) === 0, "open room loads history and clears unread");
 await Bun.sleep(200); // chat.read ack
 check((await reloadedUnread()) === 0, "reading is persisted (chat.read)");
 
 cChat.notifyTyping(roomId);
-await until(() => (aChat.getSnapshot().typing[roomId] ?? []).includes(carolId), "typing indicator");
+await until(() => of(aChat).typistsIn(RoomId.fromPrimitive(roomId)).some((typist) => typist.toPrimitive() === carolId), "typing indicator");
 
 await aChat.edit(msg.id, "editado (e2e)");
-await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.body === "editado (e2e)"), "edit propagates");
+await until(() => messagesIn(cChat, roomId).some((message) => message.body === "editado (e2e)"), "edit propagates");
 await aChat.deleteMessage(msg.id);
-await until(() => !cChat.getSnapshot().messages[roomId]!.some((m) => m.id === msg.id), "delete propagates");
+await until(() => !messagesIn(cChat, roomId).some((message) => message.id === msg.id), "delete propagates");
 
 // 1x1 transparent PNG
 const png = new Blob([Uint8Array.fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")], { type: "image/png" });
 check(await aChat.send(roomId, "foto (e2e)", png), "upload attachment straight to the bucket and send");
-await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.attachmentMeta?.contentType === "image/png"), "recipient gets attachment metadata");
-const att = cChat.getSnapshot().messages[roomId]!.find((m) => m.attachmentMeta)!.attachmentMeta!;
+await until(() => messagesIn(cChat, roomId).some((message) => message.attachmentMeta?.contentType === "image/png"), "recipient gets attachment metadata");
+const att = messagesIn(cChat, roomId).find((message) => message.attachmentMeta)!.attachmentMeta!;
 const pub = await fetch(att.url);
 check(pub.ok && pub.headers.get("content-type") === "image/png" && att.sizeBytes === png.size, "public URL serves the image");
 check(!(await aChat.send(roomId, "", new Blob(["<svg/>"], { type: "image/svg+xml" }))), "SVG is refused");
 
 await aChat.send(roomId, "solo Alice edita esto (e2e)");
-await until(() => cChat.getSnapshot().messages[roomId]!.some((m) => m.body === "solo Alice edita esto (e2e)"), "recipient gets a message to try editing");
-const alicesMessage = cChat.getSnapshot().messages[roomId]!.find((m) => m.body === "solo Alice edita esto (e2e)")!;
+await until(() => messagesIn(cChat, roomId).some((message) => message.body === "solo Alice edita esto (e2e)"), "recipient gets a message to try editing");
+const alicesMessage = messagesIn(cChat, roomId).find((message) => message.body === "solo Alice edita esto (e2e)")!;
 check(!(await cChat.edit(alicesMessage.id, "nope")), "editing someone else's message is refused");
 const refusal = cChat.getSnapshot().failure;
 check(refusal !== null && messageFor(refusal.cause, refusal.action) === "Solo puedes editar tus propios mensajes.", "refusal surfaces with the backend's code, worded in Spanish");
 
-await until(() => aChat.getSnapshot().rooms.find((r) => r.id === roomId)?.peer?.id === carolId, "DM is titled with the other member");
+await until(() => roomsOf(aChat).find((room) => room.id === roomId)?.peer?.id === carolId, "DM is titled with the other member");
 
 // Groups: names, roles, leaving.
 const groupId = await aChat.createGroup("Equipo e2e", [carolId]);
-await until(() => aChat.getSnapshot().selectedRoom?.id === groupId, "group created and opened");
-await until(() => cChat.getSnapshot().rooms.some((r) => r.id === groupId), "member gets the new group");
+await until(() => openRoomOf(aChat)?.id === groupId, "group created and opened");
+await until(() => roomsOf(cChat).some((room) => room.id === groupId), "member gets the new group");
 await cChat.selectRoom(groupId);
-check(cChat.getSnapshot().selectedRoom?.members.some((m) => m.userId === aliceId && m.role === "owner" && m.displayName.length > 0) ?? false, "members carry names and roles");
+check(openRoomOf(cChat)?.members.some((member) => member.userId === aliceId && member.role === "owner" && member.displayName.length > 0) ?? false, "members carry names and roles");
 await Bun.sleep(200); // subscriptions to the new room
-await aChat.setMemberRole(groupId, carolId, "admin");
-await until(() => cChat.getSnapshot().selectedRoom?.members.find((m) => m.userId === carolId)?.role === "admin", "role change propagates");
+await aChat.changeMemberRole(groupId, carolId, "admin");
+await until(() => openRoomOf(cChat)?.members.find((member) => member.userId === carolId)?.role === "admin", "role change propagates");
 check(!(await aChat.leaveGroup(groupId)), "owner can't leave the group");
 await cChat.leaveGroup(groupId);
-await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === groupId), "leaving removes the group for the member");
-await until(() => !aChat.getSnapshot().selectedRoom?.members.some((m) => m.userId === carolId), "owner sees the member leave");
+await until(() => !roomsOf(cChat).some((room) => room.id === groupId), "leaving removes the group for the member");
+await until(() => !openRoomOf(aChat)?.members.some((member) => member.userId === carolId), "owner sees the member leave");
 aChat.dismissFailure();
 await aChat.deleteRoom(groupId);
 
 await aChat.deleteRoom(roomId);
-await until(() => !cChat.getSnapshot().rooms.some((r) => r.id === roomId) && cChat.getSnapshot().selectedRoomId === null, "room deletion closes it for the other member");
+await until(() => !roomsOf(cChat).some((room) => room.id === roomId) && of(cChat).getOpenRoomId() === null, "room deletion closes it for the other member");
 
 const name = aliceUser.getDisplayName().toPrimitive();
 aliceUser = await alice.session.updateProfile(aliceUser, { displayName: `${name} (e2e)`, avatar: png });

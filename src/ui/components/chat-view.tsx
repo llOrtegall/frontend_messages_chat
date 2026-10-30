@@ -1,42 +1,41 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Message } from "../../domain/entities.ts";
-import { roomTitle } from "../../domain/rules.ts";
-import { AttachmentContentType } from "../../modules/attachment/domain/AttachmentContentType.ts";
-import { Message as ChatMessage } from "../../modules/message/domain/Message.ts";
-import { Room } from "../../modules/room/domain/Room.ts";
-import { UserId } from "../../modules/user/domain/UserId.ts";
+import { useChat } from "../../hooks/useChat.ts";
 import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../providers.tsx";
+import { messageFor } from "../../i18n/errorMessages.ts";
+import { AttachmentContentType } from "../../modules/attachment/domain/AttachmentContentType.ts";
+import { MessageList } from "../../modules/message/domain/MessageList.ts";
+import { RoomId } from "../../modules/room/domain/RoomId.ts";
+import type { UserId } from "../../modules/user/domain/UserId.ts";
 import { GroupMembersPanel } from "./group-members-panel.tsx";
 import { MessageAttachment, PendingAttachment } from "./message-attachment.tsx";
-import { messageFor } from "../../i18n/errorMessages.ts";
+import { titleOf } from "./rooms-list.tsx";
 
-const EMPTY: Message[] = [];
-
-const formatTime = (iso: string) => new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+const formatTime = (at: Date) => at.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 
 export function ChatView({ roomId }: { roomId: string }) {
-  const { store, rooms, selectedRoom, messages, history, typing, connection, failure } = useChat();
-  const user = useSession().user?.toPrimitive() ?? null;
-  const openRoom = selectedRoom ? Room.fromPrimitive(selectedRoom) : null;
-  const senderName = (userId: string) => openRoom?.nameOf(UserId.fromPrimitive(userId))?.toPrimitive() ?? "Antiguo miembro";
+  const { chat, session, failure } = useChat();
+  const me = useSession().user?.getId() ?? null;
+  const id = RoomId.fromPrimitive(roomId);
+  const openRoom = chat.getOpenRoom();
+  const listed = chat.getRooms()?.find(id) ?? null;
+  const history = chat.historyOf(id);
+  const messages = (history?.getMessages() ?? MessageList.empty()).map((message) => message);
+  const typists = chat.typistsIn(id);
+  const connection = chat.getConnection();
+  const isGroup = openRoom?.isGroup() ?? listed?.isGroup() ?? false;
+  const senderName = (userId: UserId) => openRoom?.nameOf(userId)?.toPrimitive() ?? "Antiguo miembro";
+
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const [pending, setPending] = useState<{ file: File; previewUrl: string | null } | null>(null);
+  const [showMembers, setShowMembers] = useState(false);
   const pendingRef = useRef(pending);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const list = messages[roomId] ?? EMPTY;
-  const page = history[roomId];
-  const [showMembers, setShowMembers] = useState(false);
-  const listed = rooms.find((r) => r.id === roomId) ?? null;
-  const isGroup = (selectedRoom ?? listed)?.kind === "group";
-  const typers = typing[roomId] ?? [];
-  const lastId = list.at(-1)?.id;
+  const lastId = messages.at(-1)?.getId().toPrimitive();
 
   // Follow new messages (not older pages being prepended).
   useEffect(() => {
@@ -62,7 +61,7 @@ export function ChatView({ roomId }: { roomId: string }) {
     e.preventDefault();
     if (!canSend) return;
     setSending(true);
-    if (await store.send(roomId, draft, pending?.file)) {
+    if (await session.send(roomId, draft, pending?.file)) {
       setDraft("");
       pickFile(null);
     }
@@ -71,26 +70,26 @@ export function ChatView({ roomId }: { roomId: string }) {
 
   const saveEdit = async () => {
     if (!editing?.body.trim()) return;
-    if (await store.edit(editing.id, editing.body)) setEditing(null);
+    if (await session.edit(editing.id, editing.body)) setEditing(null);
   };
 
   const deleteRoom = async () => {
-    const label = isGroup ? `el grupo "${listed?.name}"` : "esta conversación";
-    if (confirm(`¿Eliminar ${label}? Esta acción no se puede deshacer.`)) await store.deleteRoom(roomId);
+    const label = isGroup ? `el grupo "${listed?.title() ?? ""}"` : "esta conversación";
+    if (confirm(`¿Eliminar ${label}? Esta acción no se puede deshacer.`)) await session.deleteRoom(roomId);
   };
 
   return (
     <div className="flex h-full bg-slate-900 text-slate-100">
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-          <button onClick={() => void store.selectRoom(null)} className="text-slate-400 hover:text-slate-100 transition text-lg leading-none" aria-label="Cerrar conversación">
+          <button onClick={() => void session.selectRoom(null)} className="text-slate-400 hover:text-slate-100 transition text-lg leading-none" aria-label="Cerrar conversación">
             ←
           </button>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold truncate">{listed ? roomTitle(listed) : "…"}</h2>
-            {selectedRoom?.kind === "group" && (
+            <h2 className="font-semibold truncate">{listed ? titleOf(listed) : "…"}</h2>
+            {openRoom?.isGroup() && (
               <button onClick={() => setShowMembers((v) => !v)} aria-expanded={showMembers} className="text-xs text-slate-400 hover:text-slate-200">
-                {selectedRoom.members.length} miembro{selectedRoom.members.length !== 1 ? "s" : ""} · ver
+                {openRoom.getMembers().count()} miembro{openRoom.getMembers().count() !== 1 ? "s" : ""} · ver
               </button>
             )}
           </div>
@@ -101,7 +100,7 @@ export function ChatView({ roomId }: { roomId: string }) {
           >
             {connection === "open" ? "conectado" : connection === "connecting" ? "conectando…" : "sin conexión"}
           </span>
-          {openRoom && user && openRoom.canBeDeletedBy(UserId.fromPrimitive(user.id)) && (
+          {openRoom && me && openRoom.canBeDeletedBy(me) && (
             <button onClick={() => void deleteRoom()} title="Eliminar conversación" aria-label="Eliminar conversación" className="text-slate-400 hover:text-red-400 transition text-sm px-1.5 py-0.5 rounded hover:bg-slate-800">
               🗑
             </button>
@@ -109,46 +108,48 @@ export function ChatView({ roomId }: { roomId: string }) {
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" role="log" aria-label="Mensajes" aria-relevant="additions">
-          {page?.hasMore && list.length > 0 && (
+          {history?.hasMore() && messages.length > 0 && (
             <div className="text-center">
-              <button onClick={() => void store.loadOlder(roomId)} disabled={page.loading} className="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50">
-                {page.loading ? "Cargando…" : "Cargar anteriores"}
+              <button onClick={() => void session.loadOlder(roomId)} disabled={history.isLoading()} className="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50">
+                {history.isLoading() ? "Cargando…" : "Cargar anteriores"}
               </button>
             </div>
           )}
-          {!page || (page.loading && list.length === 0) ? (
+          {!history || (history.isLoading() && messages.length === 0) ? (
             <div className="text-center text-slate-400 text-sm pt-8">Cargando mensajes…</div>
-          ) : list.length === 0 ? (
+          ) : messages.length === 0 ? (
             <div className="text-center text-slate-400 text-sm pt-8">Sin mensajes aún. ¡Di algo!</div>
           ) : (
-            list.map((msg, i) => {
-              const own = msg.senderId === user?.id;
-              const showSender = isGroup && !own && list[i - 1]?.senderId !== msg.senderId;
-            const author = own ? "Tú" : isGroup ? senderName(msg.senderId) : (listed?.peer?.displayName ?? "Contacto");
-              const isEditing = editing?.id === msg.id;
-              const message = ChatMessage.fromPrimitive(msg);
+            messages.map((message, index) => {
+              const messageId = message.getId().toPrimitive();
+              const sender = message.getSenderId();
+              const body = message.getBody().toPrimitive();
+              const own = me !== null && message.isFrom(me);
+              const showSender = isGroup && !own && !messages[index - 1]?.isFrom(sender);
+              const author = own ? "Tú" : isGroup ? senderName(sender) : (listed?.title() ?? "Contacto");
+              const isEditing = editing?.id === messageId;
               const attachment = message.getAttachment();
               return (
-                <div key={msg.id} className={`group flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
-                  {user && message.canBeEditedBy(UserId.fromPrimitive(user.id)) && !isEditing && (
+                <div key={messageId} className={`group flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
+                  {me && message.canBeEditedBy(me) && !isEditing && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition mb-1">
-                      <button onClick={() => setEditing({ id: msg.id, body: msg.body })} className="text-xs text-slate-400 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Editar" aria-label="Editar mensaje">
+                      <button onClick={() => setEditing({ id: messageId, body })} className="text-xs text-slate-400 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Editar" aria-label="Editar mensaje">
                         ✎
                       </button>
-                      <button onClick={() => void store.deleteMessage(msg.id)} className="text-xs text-slate-400 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Borrar" aria-label="Borrar mensaje">
+                      <button onClick={() => void session.deleteMessage(messageId)} className="text-xs text-slate-400 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-slate-700" title="Borrar" aria-label="Borrar mensaje">
                         ✕
                       </button>
                     </div>
                   )}
                   <div className={`max-w-sm flex flex-col ${own ? "items-end" : "items-start"}`}>
-                    {showSender && <span aria-hidden className="text-xs text-purple-300 px-1 mb-0.5">{senderName(msg.senderId)}</span>}
+                    {showSender && <span aria-hidden className="text-xs text-purple-300 px-1 mb-0.5">{senderName(sender)}</span>}
                     {isEditing ? (
                       <div className="flex gap-1 w-72">
                         <input
                           autoFocus
                           aria-label="Editar mensaje"
                           value={editing.body}
-                          onChange={(e) => setEditing({ id: msg.id, body: e.target.value })}
+                          onChange={(e) => setEditing({ id: messageId, body: e.target.value })}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") void saveEdit();
                             if (e.key === "Escape") setEditing(null);
@@ -162,12 +163,12 @@ export function ChatView({ roomId }: { roomId: string }) {
                       <div className={`px-3 py-2 rounded-2xl space-y-1 ${own ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-700 rounded-bl-sm"}`}>
                         <span className="sr-only">{author}: </span>
                       {attachment && <MessageAttachment attachment={attachment} />}
-                        {msg.body && <p className="break-words text-sm leading-relaxed">{msg.body}</p>}
+                        {body && <p className="break-words text-sm leading-relaxed">{body}</p>}
                       </div>
                     )}
                     <span className="text-[10px] text-slate-400 mt-0.5 px-1">
-                      {formatTime(msg.createdAt)}
-                      {msg.editedAt && " · editado"}
+                      {formatTime(message.getCreatedAt())}
+                      {message.wasEdited() && " · editado"}
                     </span>
                   </div>
                 </div>
@@ -178,12 +179,12 @@ export function ChatView({ roomId }: { roomId: string }) {
         </div>
 
         <div role="status" className="px-4 text-xs text-slate-400 italic min-h-5">
-          {typers.length > 0 && (isGroup ? `${typers.map((u) => senderName(u)).join(", ")} está escribiendo…` : "Está escribiendo…")}
+          {typists.length > 0 && (isGroup ? `${typists.map(senderName).join(", ")} está escribiendo…` : "Está escribiendo…")}
         </div>
         {failure && (
           <div role="alert" className="mx-4 mb-2 px-3 py-2 bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg flex justify-between gap-2">
             <span>{messageFor(failure.cause, failure.action)}</span>
-            <button onClick={() => store.dismissFailure()} aria-label="Cerrar aviso">✕</button>
+            <button onClick={() => session.dismissFailure()} aria-label="Cerrar aviso">✕</button>
           </div>
         )}
 
@@ -210,7 +211,7 @@ export function ChatView({ roomId }: { roomId: string }) {
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);
-              store.notifyTyping(roomId);
+              session.notifyTyping(roomId);
             }}
             placeholder={connection === "open" ? "Escribe un mensaje…" : "Sin conexión…"}
             aria-label="Mensaje"
@@ -227,7 +228,7 @@ export function ChatView({ roomId }: { roomId: string }) {
           </button>
         </form>
       </div>
-      {showMembers && selectedRoom?.kind === "group" && <GroupMembersPanel room={selectedRoom} onClose={() => setShowMembers(false)} />}
+      {showMembers && openRoom?.isGroup() && <GroupMembersPanel room={openRoom} onClose={() => setShowMembers(false)} />}
     </div>
   );
 }

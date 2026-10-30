@@ -1,13 +1,16 @@
 "use client";
 
-import { roomTitle } from "../../domain/rules.ts";
-import { useChat } from "../providers.tsx";
+import { useChat } from "../../hooks/useChat.ts";
+import type { ListedRoom } from "../../modules/room/domain/ListedRoom.ts";
 
-const formatActivity = (iso: string) =>
-  new Date(iso).toLocaleString("es-ES", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
+const formatActivity = (at: Date) => at.toLocaleString("es-ES", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
+
+export const titleOf = (room: ListedRoom): string => room.title() ?? (room.isDirect() ? "Mensaje directo" : "Grupo sin nombre");
 
 export function RoomsList({ onNewConversation }: { onNewConversation: () => void }) {
-  const { rooms, roomsLoaded, selectedRoomId, unread, store } = useChat();
+  const { chat, session } = useChat();
+  const rooms = chat.getRooms();
+  const openRoomId = chat.getOpenRoomId();
 
   return (
     <div className="flex flex-col h-full">
@@ -21,19 +24,21 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {!roomsLoaded ? (
+        {rooms === null ? (
           <div className="p-4 text-slate-400 text-sm">Cargando…</div>
-        ) : rooms.length === 0 ? (
+        ) : rooms.isEmpty() ? (
           <div className="p-4 text-slate-400 text-sm">Sin conversaciones. ¡Crea una!</div>
         ) : (
           <ul className="space-y-0.5 p-2">
             {rooms.map((room) => {
-              const count = unread[room.id] ?? 0;
-              const selected = selectedRoomId === room.id;
+              const id = room.getId().toPrimitive();
+              const count = room.getUnreadCount();
+              const selected = openRoomId?.equals(room.getId()) ?? false;
+              const lastMessageAt = room.getLastMessageAt();
               return (
-                <li key={room.id}>
+                <li key={id}>
                   <button
-                    onClick={() => void store.selectRoom(room.id)}
+                    onClick={() => void session.selectRoom(id)}
                     aria-current={selected ? "true" : undefined}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition ${
                       selected ? "bg-blue-700 text-white" : "hover:bg-slate-800 text-slate-200"
@@ -42,12 +47,12 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
                     <span className="flex items-center gap-2">
                       <span
                         className={`shrink-0 text-[9px] font-bold px-1 py-0.5 rounded ${
-                          room.kind === "dm" ? "bg-blue-950 text-blue-200" : "bg-purple-950 text-purple-200"
+                          room.isDirect() ? "bg-blue-950 text-blue-200" : "bg-purple-950 text-purple-200"
                         }`}
                       >
-                        {room.kind === "dm" ? "DM" : "G"}
+                        {room.isDirect() ? "DM" : "G"}
                       </span>
-                      <span className="font-medium text-sm truncate flex-1">{roomTitle(room)}</span>
+                      <span className="font-medium text-sm truncate flex-1">{titleOf(room)}</span>
                       {count > 0 && !selected && (
                         <span
                           className="shrink-0 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
@@ -57,9 +62,9 @@ export function RoomsList({ onNewConversation }: { onNewConversation: () => void
                         </span>
                       )}
                     </span>
-                    {room.lastMessageAt && (
+                    {lastMessageAt && (
                       <span className={`block text-xs mt-0.5 ml-6 ${selected ? "text-blue-100" : "text-slate-400"}`}>
-                        {formatActivity(room.lastMessageAt)}
+                        {formatActivity(lastMessageAt)}
                       </span>
                     )}
                   </button>

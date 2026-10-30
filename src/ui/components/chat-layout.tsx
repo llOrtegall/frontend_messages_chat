@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../providers.tsx";
+import { useChat } from "../../hooks/useChat.ts";
 import { ChatView } from "./chat-view.tsx";
 import { Avatar } from "./avatar.tsx";
 import { VerifyEmailBanner } from "./email-flows.tsx";
@@ -14,12 +14,14 @@ import { UsersList } from "./users-list.tsx";
 type Tab = "chats" | "users";
 
 export function ChatLayout() {
-  const { selectedRoomId, unread, connection } = useChat();
+  const { chat } = useChat();
+  const openRoomId = chat.getOpenRoomId()?.toPrimitive() ?? null;
+  const connection = chat.getConnection();
   const { signOut, user } = useSession();
   const [tab, setTab] = useState<Tab>("chats");
   const [showNew, setShowNew] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const hasUnread = Object.values(unread).some((n) => n > 0);
+  const hasUnread = chat.getRooms()?.hasUnread() ?? false;
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100">
@@ -78,8 +80,8 @@ export function ChatLayout() {
             </p>
           )}
         </div>
-        {selectedRoomId ? (
-          <ChatView key={selectedRoomId} roomId={selectedRoomId} />
+        {openRoomId ? (
+          <ChatView key={openRoomId} roomId={openRoomId} />
         ) : (
           <div className="flex-1 flex items-center justify-center text-center text-slate-400">
             <div>

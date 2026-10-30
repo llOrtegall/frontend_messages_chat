@@ -65,6 +65,14 @@ export class Room {
     return this.attributes.kind.isGroup();
   }
 
+  withMember(member: RoomMember): Room {
+    return Room.create({ ...this.attributes, members: this.attributes.members.upsert(member) });
+  }
+
+  withoutMember(userId: UserId): Room {
+    return Room.create({ ...this.attributes, members: this.attributes.members.remove(userId) });
+  }
+
   /** Either member deletes a direct room; only the owner deletes a group. */
   canBeDeletedBy(userId: UserId): boolean {
     return !this.isGroup() || Boolean(this.roleOf(userId)?.isOwner());

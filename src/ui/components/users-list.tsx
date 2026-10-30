@@ -2,28 +2,28 @@
 
 import { useState } from "react";
 import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../providers.tsx";
+import { useChat } from "../../hooks/useChat.ts";
 import { useUserSearch } from "../../hooks/useUserSearch.ts";
 import type { User } from "../../modules/user/domain/User.ts";
 import { Avatar } from "./avatar.tsx";
 import { messageFor } from "../../i18n/errorMessages.ts";
 
 export function UsersList({ onOpened }: { onOpened: () => void }) {
-  const { store, presence } = useChat();
+  const { chat, session } = useChat();
   const me = useSession().user?.toPrimitive() ?? null;
   const [query, setQuery] = useState("");
   const { found, isLoading, failure, hasMore, loadMore, reload } = useUserSearch(query);
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const isOnline = (user: User) => presence[user.getId().toPrimitive()] ?? user.isOnline();
+  const isOnline = (user: User) => chat.isOnline(user.getId(), user.isOnline());
   const onlineCount = found.countWhere(isOnline);
 
   const openDm = async (userId: string) => {
     setOpening(userId);
     setError("");
     try {
-      await store.openDirect(userId);
+      await session.openDirect(userId);
       onOpened();
     } catch (err) {
       setError(messageFor(err, "room.open_direct"));

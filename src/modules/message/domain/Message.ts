@@ -56,6 +56,14 @@ export class Message {
     return this.attributes.id;
   }
 
+  getRoomId(): RoomId {
+    return this.attributes.roomId;
+  }
+
+  getSenderId(): UserId {
+    return this.attributes.senderId;
+  }
+
   getBody(): MessageBody {
     return this.attributes.body;
   }

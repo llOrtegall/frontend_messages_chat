@@ -115,7 +115,7 @@ describe("WsRealtimeRepository", () => {
     const { repository, statuses } = connectTo(backend.url);
     repository.connect();
     await until(() => statuses.includes("open"));
-    const draft = MessageDraft.write(RoomId.fromPrimitive(ROOM), "  hola ", null);
+    const draft = MessageDraft.write(RoomId.fromPrimitive(ROOM), MessageBody.create("hola"), null);
 
     const id = await repository.send(draft);
     const refusal = await repository.delete(MessageId.fromPrimitive(MESSAGE)).catch((error: unknown) => error);

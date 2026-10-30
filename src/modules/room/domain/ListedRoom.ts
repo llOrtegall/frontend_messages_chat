@@ -84,6 +84,27 @@ export class ListedRoom {
     return this.attributes.kind.isGroup();
   }
 
+  isDirect(): boolean {
+    return this.attributes.kind.isDirect();
+  }
+
+  getUnreadCount(): number {
+    return this.attributes.unreadCount;
+  }
+
+  getLastMessageAt(): Date | null {
+    return this.attributes.lastMessageAt;
+  }
+
+  withUnreadCount(unreadCount: number): ListedRoom {
+    return ListedRoom.create({ ...this.attributes, unreadCount });
+  }
+
+  /** A message arrived at `at`: the room moves up the list. */
+  touch(at: Date): ListedRoom {
+    return ListedRoom.create({ ...this.attributes, lastMessageAt: at });
+  }
+
   lastActivity(): Date {
     return this.attributes.lastMessageAt ?? this.attributes.createdAt;
   }

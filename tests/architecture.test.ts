@@ -14,12 +14,8 @@ import { dirname, join, relative, resolve } from "node:path";
 // hooks, components (framework code outside the modules) → modules' factories and domain (use case input
 //   types type-only), hooks, components, i18n + react/next; never infrastructure
 //
-// Legacy layers, removed as the refactor reaches them (F1–F6):
-//   domain → domain, contracts (type-only) · application → domain, application, i18n (type-only)
-//   infrastructure → domain, contracts, infrastructure, modules' domain and shared infrastructure + zod
-//   ui → domain, application, ui, composition-root, i18n, config.ts, hooks, components, modules' domain and
-//   factories + react/next · app (routes) → ui, hooks, components + react/next · contracts → contracts + zod
-// Only composition-root.ts may import legacy infrastructure.
+// ui (components not yet moved to components/, F6) → ui, hooks, components, i18n, modules' factories and domain
+// app (routes) → ui, hooks, components + react/next · contracts → contracts + zod
 
 const SRC = resolve(import.meta.dir, "../src");
 
@@ -64,28 +60,9 @@ const RULES: Record<string, Rule> = {
   i18n: { glob: "i18n/**/*.ts", allows: isModuleDomain, packages: NONE },
   hooks: { glob: "hooks/**/*.{ts,tsx}", allows: FRAMEWORK, packages: REACT },
   components: { glob: "components/**/*.{ts,tsx}", allows: FRAMEWORK, packages: REACT },
-  domain: {
-    glob: "domain/**/*.ts",
-    allows: (target, isTypeOnly) => top(target) === "domain" || (isTypeOnly && top(target) === "contracts"),
-    packages: NONE,
-  },
-  application: {
-    glob: "application/**/*.ts",
-    allows: (target, isTypeOnly) => ["domain", "application"].includes(top(target)) || (isTypeOnly && top(target) === "i18n"),
-    packages: NONE,
-  },
-  infrastructure: {
-    glob: "infrastructure/**/*.ts",
-    allows: (target) =>
-      ["domain", "contracts", "infrastructure"].includes(top(target)) ||
-      isModuleDomain(target) ||
-      target.startsWith("modules/shared/infrastructure/"),
-    packages: /^zod$/,
-  },
   ui: {
     glob: "ui/**/*.{ts,tsx}",
-    allows: (target, isTypeOnly) =>
-      ["domain", "application", "ui", "composition-root.ts", "config.ts"].includes(top(target)) || FRAMEWORK(target, isTypeOnly),
+    allows: (target, isTypeOnly) => top(target) === "ui" || FRAMEWORK(target, isTypeOnly),
     packages: REACT,
   },
   app: { glob: "app/**/*.{ts,tsx}", allows: (target) => ["ui", "hooks", "components"].includes(top(target)), packages: REACT },
@@ -122,15 +99,6 @@ describe("architecture", () => {
       expect(await violations(rule)).toEqual([]);
     });
   }
-
-  test("only providers.tsx reaches the composition root", async () => {
-    const offenders: string[] = [];
-    for await (const file of new Glob("ui/**/*.{ts,tsx}").scan(SRC)) {
-      if (file === "ui/providers.tsx") continue;
-      if ((await Bun.file(join(SRC, file)).text()).includes("composition-root")) offenders.push(file);
-    }
-    expect(offenders).toEqual([]);
-  });
 
   test("only config.ts reads the environment", async () => {
     const offenders: string[] = [];

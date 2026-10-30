@@ -11,7 +11,7 @@ export interface MessageDraftPrimitive {
   readonly clientMessageId: ClientMessageIdPrimitive;
 }
 
-/** A message the user is sending: its text trimmed, and a text or a file at least. */
+/** A message the user is sending: a text, a file or both. */
 export class MessageDraft {
   private constructor(
     private readonly roomId: RoomId,
@@ -25,8 +25,8 @@ export class MessageDraft {
     return new MessageDraft(roomId, body, attachmentKey, clientMessageId);
   }
 
-  static write(roomId: RoomId, text: string, attachmentKey: AttachmentKey | null): MessageDraft {
-    return MessageDraft.create(roomId, MessageBody.create(text.trim()), attachmentKey, ClientMessageId.generate());
+  static write(roomId: RoomId, body: MessageBody, attachmentKey: AttachmentKey | null): MessageDraft {
+    return MessageDraft.create(roomId, body, attachmentKey, ClientMessageId.generate());
   }
 
   static fromPrimitive(data: MessageDraftPrimitive): MessageDraft {

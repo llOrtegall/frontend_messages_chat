@@ -1,26 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { RoomMember, RoomWithMembers } from "../../domain/entities.ts";
-import { Room } from "../../modules/room/domain/Room.ts";
-import { RoomMember as Member } from "../../modules/room/domain/RoomMember.ts";
+import { useChat } from "../../hooks/useChat.ts";
 import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../providers.tsx";
+import type { MemberRolePrimitive } from "../../modules/room/domain/MemberRole.ts";
+import type { Room } from "../../modules/room/domain/Room.ts";
 import { Avatar } from "./avatar.tsx";
 import { UserPicker } from "./user-picker.tsx";
-import { UserId } from "../../modules/user/domain/UserId.ts";
 
-const ROLE_LABEL: Record<RoomMember["role"], string> = { owner: "propietario", admin: "admin", member: "miembro" };
+const ROLE_LABEL: Record<MemberRolePrimitive, string> = { owner: "propietario", admin: "admin", member: "miembro" };
 
 const action = "text-xs px-2 py-0.5 rounded hover:bg-slate-700 disabled:opacity-50";
 
-export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; onClose: () => void }) {
-  const { store, presence } = useChat();
+export function GroupMembersPanel({ room, onClose }: { room: Room; onClose: () => void }) {
+  const { chat, session } = useChat();
   const me = useSession().user?.getId() ?? null;
-  const group = Room.fromPrimitive(room);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!me) return null;
+
+  const roomId = room.getId().toPrimitive();
+  const members = room.getMembers();
 
   const run = async (fn: () => Promise<boolean>) => {
     setBusy(true);
@@ -29,14 +29,14 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
   };
 
   const leave = () => {
-    if (confirm(`¿Salir del grupo "${room.name}"?`)) void run(() => store.leaveGroup(room.id));
+    if (confirm(`¿Salir del grupo "${room.getName()?.toPrimitive() ?? ""}"?`)) void run(() => session.leaveGroup(roomId));
   };
 
   return (
     <aside aria-labelledby="members-title" className="w-72 border-l border-slate-700 flex flex-col bg-slate-900">
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
         <h3 id="members-title" className="font-semibold text-sm">
-          Miembros ({room.members.length})
+          Miembros ({members.count()})
         </h3>
         <button onClick={onClose} aria-label="Cerrar miembros" className="text-slate-400 hover:text-slate-100">
           ✕
@@ -44,52 +44,60 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
       </div>
 
       <ul className="flex-1 overflow-y-auto p-2 space-y-1">
-        {room.members.map((m) => (
-          <li key={m.userId} className="px-2 py-1.5 rounded hover:bg-slate-800">
-            <div className="flex items-center gap-2 text-sm">
-              <span className={`w-2 h-2 rounded-full ${presence[m.userId] ? "bg-green-500" : "bg-slate-600"}`} aria-hidden />
-              <span className="sr-only">{presence[m.userId] ? "En línea:" : "Desconectado:"}</span>
-              <Avatar name={m.displayName} url={m.avatarUrl} size="sm" />
-              <span className="flex-1 truncate">
-                {m.displayName}
-                {m.userId === me.toPrimitive() && <span className="text-slate-400"> (tú)</span>}
-              </span>
-              <span className="text-[10px] uppercase tracking-wide text-slate-400">{ROLE_LABEL[m.role]}</span>
-            </div>
-            {(group.canChangeRoleOf(Member.fromPrimitive(m), me) || group.canRemove(Member.fromPrimitive(m), me)) && (
-              <div className="flex gap-1 mt-1 pl-4">
-                {group.canChangeRoleOf(Member.fromPrimitive(m), me) && (
-                  <button
-                    disabled={busy}
-                    className={`${action} text-slate-300`}
-                    onClick={() => void run(() => store.setMemberRole(room.id, m.userId, m.role === "admin" ? "member" : "admin"))}
-                  >
-                    {m.role === "admin" ? "Quitar admin" : "Hacer admin"}
-                  </button>
-                )}
-                {group.canRemove(Member.fromPrimitive(m), me) && (
-                  <button
-                    disabled={busy}
-                    className={`${action} text-red-400`}
-                    aria-label={`Quitar a ${m.displayName} del grupo`}
-                    onClick={() => void run(() => store.removeMember(room.id, m.userId))}
-                  >
-                    Quitar
-                  </button>
-                )}
+        {members.map((member) => {
+          const userId = member.getUserId();
+          const name = member.getDisplayName().toPrimitive();
+          const role = member.getRole();
+          const isOnline = chat.isOnline(userId, false);
+          const canChangeRole = room.canChangeRoleOf(member, me);
+          const canRemove = room.canRemove(member, me);
+          return (
+            <li key={userId.toPrimitive()} className="px-2 py-1.5 rounded hover:bg-slate-800">
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-slate-600"}`} aria-hidden />
+                <span className="sr-only">{isOnline ? "En línea:" : "Desconectado:"}</span>
+                <Avatar name={name} url={member.getAvatarUrl()?.toPrimitive() ?? null} size="sm" />
+                <span className="flex-1 truncate">
+                  {name}
+                  {member.is(me) && <span className="text-slate-400"> (tú)</span>}
+                </span>
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">{ROLE_LABEL[role.toPrimitive()]}</span>
               </div>
-            )}
-          </li>
-        ))}
+              {(canChangeRole || canRemove) && (
+                <div className="flex gap-1 mt-1 pl-4">
+                  {canChangeRole && (
+                    <button
+                      disabled={busy}
+                      className={`${action} text-slate-300`}
+                      onClick={() => void run(() => session.changeMemberRole(roomId, userId.toPrimitive(), role.toggled().toPrimitive()))}
+                    >
+                      {role.isAdmin() ? "Quitar admin" : "Hacer admin"}
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button
+                      disabled={busy}
+                      className={`${action} text-red-400`}
+                      aria-label={`Quitar a ${name} del grupo`}
+                      onClick={() => void run(() => session.removeMember(roomId, userId.toPrimitive()))}
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       <div className="p-3 border-t border-slate-700 space-y-2">
-        {group.canAddMembers(me) &&
+        {room.canAddMembers(me) &&
           (adding ? (
             <div className="space-y-2">
               <UserPicker
-                exclude={room.members.map((m) => UserId.fromPrimitive(m.userId))}
-                onPick={(picked) => void run(async () => (await store.addMember(room.id, picked.getId().toPrimitive())) && (setAdding(false), true))}
+                exclude={members.userIds()}
+                onPick={(picked) => void run(async () => (await session.addMember(roomId, picked.getId().toPrimitive())) && (setAdding(false), true))}
               />
               <button onClick={() => setAdding(false)} className="text-xs text-slate-400 hover:text-slate-200">
                 Cancelar
@@ -100,7 +108,7 @@ export function GroupMembersPanel({ room, onClose }: { room: RoomWithMembers; on
               + Añadir miembro
             </button>
           ))}
-        {group.canLeave(me) && (
+        {room.canLeave(me) && (
           <button onClick={leave} disabled={busy} className="w-full py-1.5 bg-slate-800 hover:bg-red-900/60 text-red-400 rounded-lg text-sm">
             Salir del grupo
           </button>

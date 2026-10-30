@@ -23,6 +23,16 @@ export class RoomMemberList {
     }
   }
 
+  /** Adds the member or replaces the stored version of them (a new role). */
+  upsert(member: RoomMember): RoomMemberList {
+    const isListed = this.members.some((other) => other.equals(member));
+    return RoomMemberList.create(isListed ? this.members.map((other) => (other.equals(member) ? member : other)) : [...this.members, member]);
+  }
+
+  remove(userId: UserId): RoomMemberList {
+    return RoomMemberList.create(this.members.filter((member) => !member.is(userId)));
+  }
+
   find(userId: UserId): RoomMember | null {
     return this.members.find((member) => member.is(userId)) ?? null;
   }
