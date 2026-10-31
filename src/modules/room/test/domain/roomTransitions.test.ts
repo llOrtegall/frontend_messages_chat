@@ -17,6 +17,13 @@ describe("ListedRoomList transitions", () => {
     expect(touched.remove(older.getId()).count()).toBe(1);
     expect(list.upsert(older.withUnreadCount(4)).find(older.getId())?.getUnreadCount()).toBe(4);
   });
+
+  it("adds up the unread messages of every room", () => {
+    const list = ListedRoomList.create([RoomMother.listed({ unreadCount: 2 }), RoomMother.listed({ unreadCount: 0 }), RoomMother.listed({ unreadCount: 3 })]);
+
+    expect(list.totalUnread()).toBe(5);
+    expect(ListedRoomList.empty().totalUnread()).toBe(0);
+  });
 });
 
 describe("Room membership transitions", () => {

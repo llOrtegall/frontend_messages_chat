@@ -49,6 +49,10 @@ export class ListedRoomList {
     return this.rooms.map((room) => room.getId());
   }
 
+  totalUnread(): number {
+    return this.rooms.reduce((total, room) => total + room.getUnreadCount(), 0);
+  }
+
   hasUnread(): boolean {
     return this.rooms.some((room) => room.getUnreadCount() > 0);
   }

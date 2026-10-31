@@ -111,6 +111,28 @@ describe("ChatSession", () => {
     expect(modules.chat.markRoomRead).toHaveBeenCalledTimes(1);
   });
 
+  it("acknowledges the open room only while the page is in view, and on coming back", async () => {
+    const room = RoomMother.listed({ unreadCount: 0 });
+    const roomId = room.getId().toPrimitive();
+    const { session, modules, pages, status, emit, chat } = setUp([room]);
+    status("open");
+    await flush();
+    pages.push(Messages.create([messageFrom(roomId)]));
+    await session.selectRoom(roomId);
+    modules.chat.markRoomRead.mockClear();
+
+    session.pageVisibilityChanged(false);
+    emit({ type: "message.created", message: messageFrom(roomId) });
+    const unreadWhileHidden = chat().getRooms()?.find(room.getId())?.getUnreadCount();
+    const marksWhileHidden = modules.chat.markRoomRead.mock.calls.length;
+    session.pageVisibilityChanged(true);
+
+    expect(unreadWhileHidden).toBe(1);
+    expect(marksWhileHidden).toBe(0);
+    expect(modules.chat.markRoomRead).toHaveBeenCalledTimes(1);
+    expect(chat().getRooms()?.find(room.getId())?.getUnreadCount()).toBe(0);
+  });
+
   it("pages back until the start of the room", async () => {
     const roomId = RoomMother.listed().getId().toPrimitive();
     const { session, modules, pages, chat } = setUp();

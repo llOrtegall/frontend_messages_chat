@@ -1,6 +1,6 @@
 import type { FailedAction } from "../i18n/errorMessages.ts";
 import type { ChatModule } from "../modules/chat/application/factory.ts";
-import { Chat } from "../modules/chat/domain/Chat.ts";
+import { Chat, type ChatTransition } from "../modules/chat/domain/Chat.ts";
 import type { ChatEffect } from "../modules/chat/domain/ChatEffect.ts";
 import type { MessageModule } from "../modules/message/application/factory.ts";
 import { ClientMessageId } from "../modules/message/domain/ClientMessageId.ts";
@@ -210,6 +210,12 @@ export class ChatSession {
     this.modules.chat.notifyTyping(roomId);
   }
 
+  /** Only a page the user can see reads the open room. */
+  pageVisibilityChanged(isVisible: boolean): void {
+    if (isVisible) this.transition(this.snapshot.chat.pageShown());
+    else this.update(this.snapshot.chat.pageHidden());
+  }
+
   dismissFailure(): void {
     this.publish({ ...this.snapshot, failure: null });
   }
@@ -263,7 +269,10 @@ export class ChatSession {
   }
 
   private handle(event: ChatEvent): void {
-    const { chat, effects } = this.snapshot.chat.apply(event);
+    this.transition(this.snapshot.chat.apply(event));
+  }
+
+  private transition({ chat, effects }: ChatTransition): void {
     this.update(chat);
     for (const effect of effects) this.run(effect);
   }

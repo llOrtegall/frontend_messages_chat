@@ -105,6 +105,44 @@ describe("Chat", () => {
     });
   });
 
+  describe("Page visibility", () => {
+    const hiddenWithOpenRoom = () => {
+      const { chat, busy, quiet } = ChatMother.withRooms();
+      const open = chat.opened(busy).olderPageLoaded(busy, ChatMother.page(ChatMother.messageIn(busy)), 50).pageHidden();
+      return { chat: open, busy, quiet };
+    };
+
+    it("counts what arrives in the open room as unread, and reads nothing, while the page is out of view", () => {
+      const { chat, busy } = hiddenWithOpenRoom();
+
+      const { chat: next, effects } = chat.apply(ChatMother.created(ChatMother.messageIn(busy)));
+
+      expect(effects).toEqual([]);
+      expect(unreadOf(next, busy)).toBe(1);
+      expect(next.pendingReadMark(busy)).toBeNull();
+    });
+
+    it("keeps the server's count for the open room when the rooms reload out of view", () => {
+      const { chat, busy } = hiddenWithOpenRoom();
+
+      const reloaded = chat.roomsLoaded(ListedRoomList.fromPrimitive(chat.getRooms()!.toPrimitive().map((room) => ({ ...room, unreadCount: 4 }))));
+
+      expect(unreadOf(reloaded, busy)).toBe(4);
+    });
+
+    it("reads the open room once the page is back in view, and only on the way back", () => {
+      const { chat, busy } = hiddenWithOpenRoom();
+      const unread = chat.apply(ChatMother.created(ChatMother.messageIn(busy))).chat;
+
+      const shown = unread.pageShown();
+
+      expect(unreadOf(shown.chat, busy)).toBe(0);
+      expect(shown.effects).toEqual([{ type: "markRead", roomId: busy }]);
+      expect(shown.chat.pendingReadMark(busy)).not.toBeNull();
+      expect(shown.chat.pageShown().effects).toEqual([]);
+    });
+  });
+
   describe("Typing and presence", () => {
     it("shows someone else typing until it stops, and asks to time it out", () => {
       const { chat, busy } = ChatMother.withRooms();

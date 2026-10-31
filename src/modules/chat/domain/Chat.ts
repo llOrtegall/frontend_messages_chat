@@ -18,6 +18,8 @@ import { RoomHistory } from "./RoomHistory.ts";
 interface ChatAttributes {
   readonly me: UserId;
   readonly connection: ConnectionStatus;
+  /** Whether the user can see the page: only then is the open room being read. */
+  readonly isPageVisible: boolean;
   readonly rooms: ListedRoomList | null;
   readonly openRoomId: RoomId | null;
   readonly openRoom: Room | null;
@@ -56,6 +58,7 @@ export class Chat {
     return new Chat({
       me,
       connection: "closed",
+      isPageVisible: true,
       rooms: null,
       openRoomId: null,
       openRoom: null,
@@ -145,11 +148,23 @@ export class Chat {
     return this.with({ connection });
   }
 
-  /** The server's unread counts replace ours; the open room is being read right now. */
+  /** The server's unread counts replace ours; the open room is being read right now, if the page is in view. */
   roomsLoaded(rooms: ListedRoomList): Chat {
-    const openRoomId = this.attributes.openRoomId;
-    const read = openRoomId ? rooms.update(openRoomId, (room) => room.withUnreadCount(0)) : rooms;
+    const readingRoomId = this.readingRoomId();
+    const read = readingRoomId ? rooms.update(readingRoomId, (room) => room.withUnreadCount(0)) : rooms;
     return this.with({ rooms: read, countedUnread: new Map() });
+  }
+
+  pageHidden(): Chat {
+    return this.with({ isPageVisible: false });
+  }
+
+  /** Back in view: whatever arrived in the open room meanwhile is read now. */
+  pageShown(): ChatTransition {
+    const shown = this.with({ isPageVisible: true });
+    const openRoomId = this.attributes.openRoomId;
+    if (this.attributes.isPageVisible || !openRoomId) return this.unchanged(shown);
+    return { chat: shown.withRoomRead(openRoomId), effects: [{ type: "markRead", roomId: openRoomId }] };
   }
 
   roomJoined(room: ListedRoom): Chat {
@@ -184,13 +199,13 @@ export class Chat {
   }
 
   /**
-   * The message to acknowledge as read in an open room: its newest one, unless that was already sent
-   * or the channel is down (the next reconnect reads it again).
+   * The message to acknowledge as read in an open room: its newest one, unless that was already sent,
+   * the channel is down (the next reconnect reads it again) or the page is out of view (read on return).
    */
   pendingReadMark(roomId: RoomId): MessageId | null {
     const newest = this.historyOf(roomId)?.getMessages().newest()?.getId() ?? null;
     const sent = this.attributes.readMarks.get(key(roomId));
-    if (!newest || !this.isConnected() || (sent && !newest.isAfter(sent))) return null;
+    if (!newest || !this.isConnected() || !this.attributes.isPageVisible || (sent && !newest.isAfter(sent))) return null;
     return newest;
   }
 
@@ -230,7 +245,7 @@ export class Chat {
       case "presence.changed":
         return this.unchanged(this.with({ presence: withEntry(this.attributes.presence, key(event.userId), event.isOnline) }));
       case "message.read":
-        return this.unchanged(event.userId.equals(this.attributes.me) ? this.readElsewhere(event.roomId) : this);
+        return this.unchanged(event.userId.equals(this.attributes.me) ? this.withRoomRead(event.roomId) : this);
       case "room.added":
         // A direct room is titled after the other member, whom only the room list carries.
         return { chat: this.roomJoined(event.room), effects: event.room.isDirect() ? [{ type: "reloadRooms" }] : [] };
@@ -250,8 +265,12 @@ export class Chat {
       .touched(roomId, message.getCreatedAt())
       .typingStopped(roomId, message.getSenderId());
     if (message.isFrom(this.attributes.me)) return this.unchanged(chat);
-    const isOpen = this.attributes.openRoomId?.equals(roomId) ?? false;
-    return isOpen ? { chat, effects: [{ type: "markRead", roomId }] } : this.unchanged(chat.countedAsUnread(roomId, message.getId()));
+    const isBeingRead = this.readingRoomId()?.equals(roomId) ?? false;
+    return isBeingRead ? { chat, effects: [{ type: "markRead", roomId }] } : this.unchanged(chat.countedAsUnread(roomId, message.getId()));
+  }
+
+  private readingRoomId(): RoomId | null {
+    return this.attributes.isPageVisible ? this.attributes.openRoomId : null;
   }
 
   private touched(roomId: RoomId, at: Date): Chat {
@@ -267,7 +286,7 @@ export class Chat {
     });
   }
 
-  private readElsewhere(roomId: RoomId): Chat {
+  private withRoomRead(roomId: RoomId): Chat {
     return this.with({
       rooms: this.attributes.rooms?.update(roomId, (room) => room.withUnreadCount(0)) ?? null,
       countedUnread: withoutEntry(this.attributes.countedUnread, key(roomId)),

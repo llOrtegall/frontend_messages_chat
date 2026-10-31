@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "../hooks/useSession.ts";
 import { useChat } from "../hooks/useChat.ts";
+import { useUnreadTitle } from "../hooks/useUnreadTitle.ts";
 import { ChatView } from "./ChatView.tsx";
 import { Avatar } from "./Avatar.tsx";
 import { VerifyEmailBanner } from "./VerifyEmailBanner.tsx";
@@ -22,6 +23,7 @@ export function ChatLayout() {
   const [showNew, setShowNew] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const hasUnread = chat.getRooms()?.hasUnread() ?? false;
+  useUnreadTitle(chat.getRooms()?.totalUnread() ?? 0);
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100">

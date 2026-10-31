@@ -71,6 +71,35 @@ test("two users chat live: unread, edit, delete, history after reload", async ({
   expect(a11y.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
 });
 
+test("a tab out of view doesn't read the open room; the title counts what is unread", async ({ users }) => {
+  const [ana, ben] = await users("Ana", "Ben");
+  await openChat(ana);
+  await openChat(ben);
+  await openDm(ana, ben);
+  await send(ana, "primero");
+  await ben.page.getByRole("button", { name: new RegExp(`${ana.name}.*1 sin leer`) }).click();
+  await expect(messages(ben).getByText("primero")).toBeVisible();
+  await expect(ben.page).toHaveTitle("Chat App");
+
+  const setVisibility = (state: "hidden" | "visible") =>
+    ben.page.evaluate((value) => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => value });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, state);
+
+  await setVisibility("hidden");
+  await send(ana, "mientras no miras");
+  await expect(messages(ben).getByText("mientras no miras")).toBeVisible();
+  await expect(ben.page).toHaveTitle("(1) Chat App");
+
+  await setVisibility("visible");
+  await expect(ben.page).toHaveTitle("Chat App");
+  await expect(ben.page.getByText(/sin leer/)).toHaveCount(0);
+  await ben.page.reload();
+  await expect(ben.page.getByRole("button", { name: new RegExp(ana.name) })).toBeVisible();
+  await expect(ben.page.getByText(/sin leer/)).toHaveCount(0);
+});
+
 test("image attachment is uploaded to the bucket and shown to the other user", async ({ users }) => {
   const [ana, ben] = await users("Ana", "Ben");
   await openChat(ana);
