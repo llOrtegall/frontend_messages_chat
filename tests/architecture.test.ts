@@ -9,7 +9,7 @@ import { dirname, join, relative, resolve } from "node:path";
 //   application     → any module's domain or application (a use case may compose another's); no packages
 //   factory.ts      → anything in modules/ and config.ts: pure wiring
 //   infrastructure  → any module's domain, shared infrastructure, contracts + zod
-//   test/           → not checked (bun:test, faker)
+//   test/           → not checked (bun:test, faker); neither are component tests (*.test.tsx, components/test/)
 // i18n             → modules' domain only
 // hooks, components (framework code outside the modules) → modules' factories and domain (use case input
 //   types type-only), hooks, components, i18n + react/next; never infrastructure
@@ -32,7 +32,7 @@ const top = (path: string) => path.split("/")[0]!;
 const isModuleLayer = (path: string, layer: string) => new RegExp(`^modules/[^/]+/${layer}/`).test(path);
 const isModuleDomain = (path: string) => isModuleLayer(path, "domain");
 const isFactory = (path: string) => /^modules\/[^/]+\/application\/factory\.ts$/.test(path);
-const isModuleTest = (file: string) => isModuleLayer(file, "test");
+const isTestCode = (file: string) => isModuleLayer(file, "test") || file.startsWith("components/test/") || /\.test\.tsx?$/.test(file);
 const usesModulesFromOutside = (target: string, isTypeOnly: boolean) =>
   isModuleDomain(target) || isFactory(target) || (isTypeOnly && isModuleLayer(target, "application"));
 const FRAMEWORK = (target: string, isTypeOnly: boolean) =>
@@ -75,7 +75,7 @@ function targetOf(file: string, spec: string): string | null {
 async function violations(rule: Rule): Promise<string[]> {
   const found: string[] = [];
   for await (const file of new Glob(rule.glob).scan(SRC)) {
-    if (isModuleTest(file) || rule.skip?.(file)) continue;
+    if (isTestCode(file) || rule.skip?.(file)) continue;
     const text = await Bun.file(join(SRC, file)).text();
     for (const match of text.matchAll(IMPORT_RE)) {
       const spec = match[3] ?? match[4]!;
@@ -97,7 +97,7 @@ describe("architecture", () => {
   test("only config.ts reads the environment", async () => {
     const offenders: string[] = [];
     for await (const file of new Glob("**/*.{ts,tsx}").scan(SRC)) {
-      if (file === "config.ts" || isModuleTest(file)) continue;
+      if (file === "config.ts" || isTestCode(file)) continue;
       if ((await Bun.file(join(SRC, file)).text()).includes("process.env")) offenders.push(file);
     }
     expect(offenders).toEqual([]);

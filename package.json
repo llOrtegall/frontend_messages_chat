@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "contracts:sync": "bun scripts/sync-contracts.ts sync",
     "contracts:check": "bun scripts/sync-contracts.ts check",
-    "test": "bun test tests src",
+    "test": "bun test tests src/modules && bun test --preload ./tests/setup/dom.ts src/components",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -22,8 +22,12 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@faker-js/faker": "10.6.0",
+    "@happy-dom/global-registrator": "21.0.4",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
     "@types/bun": "^1.4.4",
     "@types/node": "^24",
     "@types/react": "^19.3.0",

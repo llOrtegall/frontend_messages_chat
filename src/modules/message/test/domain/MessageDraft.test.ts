@@ -30,4 +30,10 @@ describe("MessageDraft", () => {
   it("rejects a client id that is not a uuid", () => {
     expect(() => ClientMessageId.create("c1")).toThrow(InvalidMessageError);
   });
+
+  it("tells whether what the user typed and attached would make a message", () => {
+    expect(MessageDraft.hasContent("  hola ", false)).toBe(true);
+    expect(MessageDraft.hasContent("   ", true)).toBe(true);
+    expect(MessageDraft.hasContent("   ", false)).toBe(false);
+  });
 });
