@@ -1,6 +1,6 @@
 # 0004 — Estrategia de tests
 
-**Estado:** aceptada (2026-10-26)
+**Estado:** sustituida por [0007](0007-testing.md) (aceptada 2026-10-26)
 
 **Decisión.** `bun test` (mismo runner que el backend) para dominio, stores con fakes, adaptadores contra servidores
 `Bun.serve` locales y la regla de arquitectura. `scripts/dev/e2e-smoke.ts` ejercita las capas reales contra el

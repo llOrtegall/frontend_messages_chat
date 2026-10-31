@@ -28,7 +28,7 @@ bun dev            # http://localhost:3001 — usuarios de prueba: alice/bob/car
 |---|---|
 | `bun dev` / `bun run build` | Desarrollo (puerto 3001) / build de producción |
 | `bun run typecheck` · `bun run lint` | |
-| `bun run test` | Tests unitarios, de infraestructura (servidores falsos) y de arquitectura |
+| `bun run test` | Dominio, casos de uso, repositorios (servidores falsos), `ChatSession` y arquitectura; después, componentes con happy-dom |
 | `bun run contracts:sync` | Copia `src/contracts/` desde `../backend_messages_chat` (o `$CONTRACTS_BACKEND_DIR`) |
 | `bun run contracts:check` | Falla si `src/contracts/` se editó a mano o difiere del backend |
 | `bun scripts/dev/e2e-smoke.ts` | Prueba E2E de las capas de aplicación e infraestructura contra el backend en marcha |
@@ -57,26 +57,36 @@ artefacto si falla).
 `docker build --build-arg NEXT_PUBLIC_API_URL=https://chat.example.com -t chat-web .`. El stack completo (Caddy, API,
 web, Postgres, Redis) está en el backend: [`deploy/README.md`](https://github.com/llOrtegall/backend_messages_chat/blob/master/deploy/README.md).
 
-## Arquitectura (hexagonal)
+## Arquitectura (Clean Architecture por módulos)
+
+Sigue las skills `clean-architecture-core` + `-frontend` (ver [ADR 0005](docs/adr/0005-clean-architecture-modules.md)):
 
 ```
 src/
-  app/                 Rutas de Next: solo componen la UI
-  contracts/           Formato de red del backend (copia sincronizada, no editar)
-  domain/              Entidades (tipos de contracts), reglas puras y puertos
-  application/         SessionStore y ChatStore: casos de uso + estado (sin React ni fetch)
-  infrastructure/      HttpClient y adaptadores REST, WsRealtimeGateway
-  ui/                  Componentes y hooks; providers.tsx crea el contenedor
-  composition-root.ts  Único sitio que conoce los adaptadores concretos
+  modules/<m>/          shared, session, user, room, message, attachment, realtime, chat
+    domain/             Value Objects, entidades y XList inmutables (create/ensure*/fromPrimitive/toPrimitive), *Repository, errores con code
+    application/        Un caso de uso por fichero (dependencias → entrada) + factory.ts (cableado e instancia compartida)
+    infrastructure/     Http*Repository, WsRealtimeRepository, S3AttachmentRepository, ApiHttp, readContract
+    test/               Tests del módulo, Object Mothers y RepositoryMothers
+  hooks/                useSession, useUserSearch, useChat + ChatSession (almacén externo del chat)
+  components/           Contenedores (usan hooks) y presentadores (props → JSX)
+  i18n/errorMessages.ts Único diccionario de mensajes al usuario, por code
+  config.ts             Único lector de process.env
+  app/                  Rutas de Next: solo componen components/
+  contracts/            Formato de red del backend (copia sincronizada, no editar)
 ```
 
-`tests/architecture.test.ts` hace cumplir las dependencias entre capas.
+`tests/architecture.test.ts` hace cumplir las dependencias.
 
+- **Chat en tiempo real**: el agregado inmutable `Chat` aplica cada evento del WebSocket y devuelve los efectos que
+  decide (marcar leído, recargar salas, caducar el typing); `ChatSession` los ejecuta y llama a un caso de uso por acción.
+- **Errores**: `RequestFailedError` lleva el `code` del backend (o `request.network`, `realtime.disconnected`…) y la UI
+  lo redacta con `messageFor(error, acción)`.
 - **Sesión**: el refresh token es una cookie `HttpOnly` del API; el access token vive solo en memoria. Al cargar, la
   sesión se restaura con un refresh (single-flight: el backend revoca la sesión si se reutiliza un token rotado).
 - **Tiempo real**: el WebSocket se abre con un ticket de un solo uso (`POST /ws/ticket`), nunca con el JWT en la URL.
   Reconecta con backoff y jitter, re-suscribe las rooms y, tras cada (re)conexión, recarga rooms y la conversación
   abierta porque los eventos perdidos no se reenvían.
-- **Contratos**: respuestas REST y frames WS se validan con Zod; un frame inválido se descarta.
+- **Contratos**: respuestas REST y frames WS se validan con Zod tolerando campos nuevos ([ADR 0006](docs/adr/0006-tolerant-contract-reads.md)); un frame inválido se descarta.
 - **Rutas**: la protección es en cliente (`SessionGate`): la cookie pertenece al origen del API y el servidor de Next no
   la ve. El API autoriza cada petición igualmente.

@@ -1,6 +1,6 @@
 # 0001 — Frontend hexagonal con stores propios
 
-**Estado:** aceptada (2026-10-25)
+**Estado:** sustituida por [0005](0005-clean-architecture-modules.md) (aceptada 2026-10-25)
 
 **Contexto.** La lógica (WebSocket, reconexión, no leídos, typing) vivía en hooks y componentes, difícil de probar.
 

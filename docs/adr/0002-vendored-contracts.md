@@ -1,6 +1,6 @@
 # 0002 — Contratos vendorizados y validados en el borde
 
-**Estado:** aceptada (2026-10-25)
+**Estado:** aceptada (2026-10-25); la lectura tolerante la matiza [0006](0006-tolerant-contract-reads.md)
 
 **Decisión.** `src/contracts/` es una copia exacta de la del backend (`bun run contracts:sync`; CI falla con
 `contracts:check` si difiere o se editó a mano). Los adaptadores validan cada respuesta HTTP y cada frame WS con esos
