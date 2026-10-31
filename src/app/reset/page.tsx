@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import { ResetPasswordForm } from "@/ui/components/email-flows";
-import { FullScreenMessage } from "@/ui/components/session-gate";
+import { ResetPasswordForm } from "@/components/ResetPasswordForm";
+import { FullScreenMessage } from "@/components/FullScreenMessage";
 
 // useSearchParams needs a Suspense boundary for the page to prerender.
 export default function ResetPage() {

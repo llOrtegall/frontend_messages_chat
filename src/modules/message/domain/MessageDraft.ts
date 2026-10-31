@@ -38,6 +38,11 @@ export class MessageDraft {
     );
   }
 
+  /** Whether what the user typed and attached would make a message (before uploading anything). */
+  static hasContent(text: string, hasAttachment: boolean): boolean {
+    return text.trim().length > 0 || hasAttachment;
+  }
+
   private static ensureHasContent(body: MessageBody, attachmentKey: AttachmentKey | null): void {
     if (body.isEmpty() && attachmentKey === null) throw new EmptyMessageError();
   }

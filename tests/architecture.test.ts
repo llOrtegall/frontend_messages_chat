@@ -14,8 +14,7 @@ import { dirname, join, relative, resolve } from "node:path";
 // hooks, components (framework code outside the modules) → modules' factories and domain (use case input
 //   types type-only), hooks, components, i18n + react/next; never infrastructure
 //
-// ui (components not yet moved to components/, F6) → ui, hooks, components, i18n, modules' factories and domain
-// app (routes) → ui, hooks, components + react/next · contracts → contracts + zod
+// app (routes) → hooks, components + react/next · contracts → contracts + zod
 
 const SRC = resolve(import.meta.dir, "../src");
 
@@ -60,12 +59,7 @@ const RULES: Record<string, Rule> = {
   i18n: { glob: "i18n/**/*.ts", allows: isModuleDomain, packages: NONE },
   hooks: { glob: "hooks/**/*.{ts,tsx}", allows: FRAMEWORK, packages: REACT },
   components: { glob: "components/**/*.{ts,tsx}", allows: FRAMEWORK, packages: REACT },
-  ui: {
-    glob: "ui/**/*.{ts,tsx}",
-    allows: (target, isTypeOnly) => top(target) === "ui" || FRAMEWORK(target, isTypeOnly),
-    packages: REACT,
-  },
-  app: { glob: "app/**/*.{ts,tsx}", allows: (target) => ["ui", "hooks", "components"].includes(top(target)), packages: REACT },
+  app: { glob: "app/**/*.{ts,tsx}", allows: (target) => ["hooks", "components"].includes(top(target)), packages: REACT },
   contracts: { glob: "contracts/**/*.ts", allows: (target) => top(target) === "contracts", packages: /^zod$/ },
 };
 

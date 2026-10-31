@@ -1,7 +1,7 @@
 "use client";
 
-import { AuthForm } from "@/ui/components/auth-form";
-import { SessionGate } from "@/ui/components/session-gate";
+import { AuthForm } from "@/components/AuthForm";
+import { SessionGate } from "@/components/SessionGate";
 
 export default function LoginPage() {
   return (

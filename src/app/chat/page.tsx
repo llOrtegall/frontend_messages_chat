@@ -2,8 +2,8 @@
 
 import { useSession } from "@/hooks/useSession";
 import { ChatProvider } from "@/components/ChatProvider";
-import { ChatLayout } from "@/ui/components/chat-layout";
-import { SessionGate } from "@/ui/components/session-gate";
+import { ChatLayout } from "@/components/ChatLayout";
+import { SessionGate } from "@/components/SessionGate";
 
 function Chat() {
   const { user } = useSession();

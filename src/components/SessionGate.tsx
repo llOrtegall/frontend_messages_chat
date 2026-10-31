@@ -2,11 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "../../hooks/useSession.ts";
-
-export function FullScreenMessage({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center text-slate-400">{children}</div>;
-}
+import { useSession } from "../hooks/useSession.ts";
+import { FullScreenMessage } from "./FullScreenMessage.tsx";
 
 /**
  * Client-side route guard. The refresh cookie belongs to the API origin, so the Next server

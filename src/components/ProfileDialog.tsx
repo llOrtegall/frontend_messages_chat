@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { messageFor } from "../../i18n/errorMessages.ts";
-import { useSession } from "../../hooks/useSession.ts";
-import { AttachmentContentType } from "../../modules/attachment/domain/AttachmentContentType.ts";
-import { Avatar } from "./avatar.tsx";
-import { Modal } from "./modal.tsx";
+import { messageFor } from "../i18n/errorMessages.ts";
+import { useSession } from "../hooks/useSession.ts";
+import { AttachmentContentType } from "../modules/attachment/domain/AttachmentContentType.ts";
+import { Avatar } from "./Avatar.tsx";
+import { Modal } from "./Modal.tsx";
 
 export function ProfileDialog({ onClose }: { onClose: () => void }) {
   const { user, updateProfile } = useSession();

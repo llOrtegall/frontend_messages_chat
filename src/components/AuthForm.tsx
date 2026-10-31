@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSession } from "../../hooks/useSession.ts";
-import { messageFor } from "../../i18n/errorMessages.ts";
+import { useSession } from "../hooks/useSession.ts";
+import { messageFor } from "../i18n/errorMessages.ts";
+import { inputClass } from "./formStyles.ts";
 
-const input =
-  "w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 /** Login or registration. On success the session changes and <SessionGate> redirects to /chat. */
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
@@ -44,19 +43,19 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       {!isLogin && (
         <label className="block text-sm font-medium text-slate-300">
           Nombre visible
-          <input className={`${input} mt-1`} value={displayName} onChange={(e) => setDisplayName(e.target.value)} required maxLength={64} />
+          <input className={`${inputClass} mt-1`} value={displayName} onChange={(e) => setDisplayName(e.target.value)} required maxLength={64} />
         </label>
       )}
 
       <label className="block text-sm font-medium text-slate-300">
         Email
-        <input className={`${input} mt-1`} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input className={`${inputClass} mt-1`} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
 
       <label className="block text-sm font-medium text-slate-300">
         Contraseña{!isLogin && " (mín. 8 caracteres)"}
         <input
-          className={`${input} mt-1`}
+          className={`${inputClass} mt-1`}
           type="password"
           autoComplete={isLogin ? "current-password" : "new-password"}
           value={password}

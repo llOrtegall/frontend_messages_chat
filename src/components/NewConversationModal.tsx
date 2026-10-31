@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { UserList } from "../../modules/user/domain/UserList.ts";
-import { messageFor } from "../../i18n/errorMessages.ts";
-import { useChat } from "../../hooks/useChat.ts";
-import { Modal } from "./modal.tsx";
-import { UserPicker } from "./user-picker.tsx";
+import { UserList } from "../modules/user/domain/UserList.ts";
+import { messageFor } from "../i18n/errorMessages.ts";
+import { useChat } from "../hooks/useChat.ts";
+import { Modal } from "./Modal.tsx";
+import { UserPicker } from "./UserPicker.tsx";
 
 const input =
   "w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm";

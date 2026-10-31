@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../../hooks/useChat.ts";
-import { useUserSearch } from "../../hooks/useUserSearch.ts";
-import type { User } from "../../modules/user/domain/User.ts";
-import { Avatar } from "./avatar.tsx";
-import { messageFor } from "../../i18n/errorMessages.ts";
+import { useSession } from "../hooks/useSession.ts";
+import { useChat } from "../hooks/useChat.ts";
+import { useUserSearch } from "../hooks/useUserSearch.ts";
+import type { User } from "../modules/user/domain/User.ts";
+import { UserItem } from "./UserItem.tsx";
+import { messageFor } from "../i18n/errorMessages.ts";
 
 export function UsersList({ onOpened }: { onOpened: () => void }) {
   const { chat, session } = useChat();
-  const me = useSession().user?.toPrimitive() ?? null;
+  const me = useSession().user;
   const [query, setQuery] = useState("");
   const { found, isLoading, failure, hasMore, loadMore, reload } = useUserSearch(query);
   const [opening, setOpening] = useState<string | null>(null);
@@ -65,24 +65,10 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
           <ul className="space-y-0.5 p-2">
             {found.map((user) => {
               const id = user.getId().toPrimitive();
-              const name = user.getDisplayName().toPrimitive();
               return (
-              <li key={id}>
-                <button
-                  onClick={() => void openDm(id)}
-                  disabled={opening === id}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-slate-800 text-left disabled:opacity-60"
-                  title="Abrir mensaje directo"
-                >
-                  <Avatar name={name} url={user.getAvatarUrl()?.toPrimitive() ?? null} />
-                  <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(user) ? "bg-green-400" : "bg-slate-600"}`} aria-hidden />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-medium text-slate-200 truncate">{name}</span>
-                    <span className="block text-xs text-slate-400">{isOnline(user) ? "En línea" : "Desconectado"}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-blue-400">{opening === id ? "…" : "DM"}</span>
-                </button>
-              </li>
+                <li key={id}>
+                  <UserItem user={user} isOnline={isOnline(user)} isOpening={opening === id} onOpen={() => void openDm(id)} />
+                </li>
               );
             })}
             {hasMore && (
@@ -103,9 +89,9 @@ export function UsersList({ onOpened }: { onOpened: () => void }) {
       {me && (
         <div className="p-4 border-t border-slate-700 text-sm">
           <div className="text-slate-100 font-medium">
-            {me.displayName} <span className="text-green-400 text-xs">● tú</span>
+            {me.getDisplayName().toPrimitive()} <span className="text-green-400 text-xs">● tú</span>
           </div>
-          <div className="text-slate-400 text-xs">{me.email}</div>
+          <div className="text-slate-400 text-xs">{me.getEmail().toPrimitive()}</div>
         </div>
       )}
     </div>

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "../../hooks/useSession.ts";
-import { useChat } from "../../hooks/useChat.ts";
-import { ChatView } from "./chat-view.tsx";
-import { Avatar } from "./avatar.tsx";
-import { VerifyEmailBanner } from "./email-flows.tsx";
-import { ProfileDialog } from "./profile-dialog.tsx";
-import { NewConversationModal } from "./new-conversation-modal.tsx";
-import { RoomsList } from "./rooms-list.tsx";
-import { UsersList } from "./users-list.tsx";
+import { useSession } from "../hooks/useSession.ts";
+import { useChat } from "../hooks/useChat.ts";
+import { ChatView } from "./ChatView.tsx";
+import { Avatar } from "./Avatar.tsx";
+import { VerifyEmailBanner } from "./VerifyEmailBanner.tsx";
+import { ProfileDialog } from "./ProfileDialog.tsx";
+import { NewConversationModal } from "./NewConversationModal.tsx";
+import { RoomsList } from "./RoomsList.tsx";
+import { UsersList } from "./UsersList.tsx";
 
 type Tab = "chats" | "users";
 
