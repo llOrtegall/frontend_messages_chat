@@ -29,7 +29,7 @@ export const MessageComposer = ({ isConnected, onSend, onTyping }: MessageCompos
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const canSend = MessageDraft.hasContent(draft, pending !== null) && !sending && isConnected;
+  const canSend = MessageDraft.hasContent(draft, pending !== null) && !sending;
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +68,7 @@ export const MessageComposer = ({ isConnected, onSend, onTyping }: MessageCompos
             setDraft(e.target.value);
             onTyping();
           }}
-          placeholder={isConnected ? "Escribe un mensaje…" : "Sin conexión…"}
+          placeholder={isConnected ? "Escribe un mensaje…" : "Sin conexión: se enviará al reconectar"}
           aria-label="Mensaje"
           maxLength={4096}
           className="flex-1 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"

@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { Message, type MessagePrimitive } from "../../domain/Message.ts";
+import { MessageDraft, type MessageDraftPrimitive } from "../../domain/MessageDraft.ts";
 
 let sequence = 0;
 
@@ -24,3 +25,13 @@ export const createPrimitive = (overrides: Partial<MessagePrimitive> = {}): Mess
 });
 
 export const create = (overrides: Partial<MessagePrimitive> = {}): Message => Message.fromPrimitive(createPrimitive(overrides));
+
+export const draftPrimitive = (overrides: Partial<MessageDraftPrimitive> = {}): MessageDraftPrimitive => ({
+  roomId: faker.string.uuid(),
+  body: faker.lorem.sentence(),
+  attachmentKey: null,
+  clientMessageId: faker.string.uuid(),
+  ...overrides,
+});
+
+export const draft = (overrides: Partial<MessageDraftPrimitive> = {}): MessageDraft => MessageDraft.fromPrimitive(draftPrimitive(overrides));

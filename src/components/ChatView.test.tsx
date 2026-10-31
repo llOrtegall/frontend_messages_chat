@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as MessageMother from "../modules/message/test/helpers/MessageMother.ts";
 import * as CurrentUserMother from "../modules/session/test/helpers/CurrentUserMother.ts";
 import { RequestFailedError } from "../modules/shared/domain/errors/RequestFailedError.ts";
 import { ChatView } from "./ChatView.tsx";
@@ -40,6 +41,22 @@ describe("ChatView", () => {
     renderOpenGroup();
 
     expect(screen.getByRole("button", { name: "Enviar" })).toHaveProperty("disabled", true);
+  });
+
+  it("shows a message on its way, and offers to retry or discard one that wasn't sent", async () => {
+    const group = ChatMother.openGroup();
+    const [sending, lost] = [MessageMother.draft({ roomId: group.room.getId().toPrimitive(), body: "voy" }), MessageMother.draft({ roomId: group.room.getId().toPrimitive(), body: "perdido" })];
+    const chat = group.chat.messageSending(sending).messageSending(lost).messageNotSent(lost.getClientMessageId());
+    const chatSession = fakeChatSession(chat);
+    renderInApp(<ChatView roomId={group.room.getId().toPrimitive()} />, { session: fakeSession({}, CurrentUserMother.create({ id: group.me.toPrimitive() })), chatSession });
+
+    expect(screen.getByText("Enviando…")).toBeTruthy();
+    expect(screen.getByText("No enviado")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Descartar" }));
+
+    expect(chatSession.retrySend).toHaveBeenCalledWith(lost.getClientMessageId().toPrimitive());
+    expect(chatSession.discardSend).toHaveBeenCalledWith(lost.getClientMessageId().toPrimitive());
   });
 
   it("offers no edit on someone else's message", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Message } from "../../../message/domain/Message.ts";
+import * as MessageMother from "../../../message/test/helpers/MessageMother.ts";
 import { ListedRoomList } from "../../../room/domain/ListedRoomList.ts";
 import { Room } from "../../../room/domain/Room.ts";
 import { RoomMember } from "../../../room/domain/RoomMember.ts";
@@ -160,6 +161,43 @@ describe("Chat", () => {
       expect(joined.getOpenRoom()?.getMembers().count()).toBe(2);
       expect(left.getOpenRoom()?.getMembers().count()).toBe(1);
       expect(chat.apply({ type: "member.left", roomId: busy, userId: UserId.fromPrimitive(crypto.randomUUID()) }).chat.getOpenRoom()).toBeNull();
+    });
+  });
+
+  describe("Outbox", () => {
+    it("shows a message being sent in its room until the backend confirms it", () => {
+      const { chat, busy, quiet } = ChatMother.withRooms();
+      const draft = MessageMother.draft({ roomId: busy.toPrimitive() });
+
+      const sending = chat.messageSending(draft);
+
+      expect(sending.outgoingIn(busy).count()).toBe(1);
+      expect(sending.outgoingIn(quiet).isEmpty()).toBe(true);
+      expect(sending.messageSent(draft.getClientMessageId()).outgoingIn(busy).isEmpty()).toBe(true);
+      expect(chat.outgoingIn(busy).isEmpty()).toBe(true);
+    });
+
+    it("keeps a message that wasn't sent to try it again with the same draft, until discarded", () => {
+      const { chat, busy } = ChatMother.withRooms();
+      const draft = MessageMother.draft({ roomId: busy.toPrimitive() });
+      const id = draft.getClientMessageId();
+
+      const notSent = chat.messageSending(draft).messageNotSent(id);
+      const retrying = notSent.messageSending(notSent.findOutgoing(id)!.getDraft());
+
+      expect(notSent.undelivered().map((message) => message.getId())).toEqual([id]);
+      expect(retrying.undelivered().isEmpty()).toBe(true);
+      expect(retrying.outgoingIn(busy).count()).toBe(1);
+      expect(notSent.messageDiscarded(id).findOutgoing(id)).toBeNull();
+    });
+
+    it("forgets what was on its way to a room the user left", () => {
+      const { chat, busy } = ChatMother.withRooms();
+      const draft = MessageMother.draft({ roomId: busy.toPrimitive() });
+
+      const { chat: left } = chat.messageSending(draft).apply({ type: "room.removed", roomId: busy });
+
+      expect(left.findOutgoing(draft.getClientMessageId())).toBeNull();
     });
   });
 });

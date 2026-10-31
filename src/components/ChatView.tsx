@@ -10,6 +10,7 @@ import type { UserId } from "../modules/user/domain/UserId.ts";
 import { GroupMembersPanel } from "./GroupMembersPanel.tsx";
 import { MessageComposer } from "./MessageComposer.tsx";
 import { MessageItem } from "./MessageItem.tsx";
+import { OutgoingMessageItem } from "./OutgoingMessageItem.tsx";
 import { roomTitle } from "./roomTitle.ts";
 
 const CONNECTION_LABEL = { open: "conectado", connecting: "conectando…", closed: "sin conexión" } as const;
@@ -25,16 +26,18 @@ export function ChatView({ roomId }: { roomId: string }) {
   const listed = chat.getRooms()?.find(id) ?? null;
   const history = chat.historyOf(id);
   const messages = (history?.getMessages() ?? MessageList.empty()).map((message) => message);
+  const outgoing = chat.outgoingIn(id);
   const typists = chat.typistsIn(id);
   const connection = chat.getConnection();
   const isGroup = openRoom?.isGroup() ?? listed?.isGroup() ?? false;
   const senderName = (userId: UserId) => openRoom?.nameOf(userId)?.toPrimitive() ?? "Antiguo miembro";
   const lastId = messages.at(-1)?.getId().toPrimitive();
+  const outgoingCount = outgoing.count();
 
   // Follow new messages (not older pages being prepended).
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lastId]);
+  }, [lastId, outgoingCount]);
 
   const deleteRoom = async () => {
     const label = isGroup ? `el grupo "${listed?.title() ?? ""}"` : "esta conversación";
@@ -76,7 +79,7 @@ export function ChatView({ roomId }: { roomId: string }) {
           )}
           {!history || (history.isLoading() && messages.length === 0) ? (
             <div className="text-center text-slate-400 text-sm pt-8">Cargando mensajes…</div>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && outgoing.isEmpty() ? (
             <div className="text-center text-slate-400 text-sm pt-8">Sin mensajes aún. ¡Di algo!</div>
           ) : (
             messages.map((message, index) => {
@@ -97,6 +100,17 @@ export function ChatView({ roomId }: { roomId: string }) {
               );
             })
           )}
+          {outgoing.map((message) => {
+            const clientMessageId = message.getId().toPrimitive();
+            return (
+              <OutgoingMessageItem
+                key={clientMessageId}
+                message={message}
+                onRetry={() => session.retrySend(clientMessageId)}
+                onDiscard={() => session.discardSend(clientMessageId)}
+              />
+            );
+          })}
           <div ref={endRef} />
         </div>
 

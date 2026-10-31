@@ -3,9 +3,12 @@ import type { ChatModule } from "../modules/chat/application/factory.ts";
 import { Chat } from "../modules/chat/domain/Chat.ts";
 import type { ChatEffect } from "../modules/chat/domain/ChatEffect.ts";
 import type { MessageModule } from "../modules/message/application/factory.ts";
+import { ClientMessageId } from "../modules/message/domain/ClientMessageId.ts";
+import type { MessageDraft } from "../modules/message/domain/MessageDraft.ts";
 import type { ChatEvent } from "../modules/realtime/domain/ChatEvent.ts";
 import type { RoomModule } from "../modules/room/application/factory.ts";
 import { RoomId } from "../modules/room/domain/RoomId.ts";
+import { RequestFailedError } from "../modules/shared/domain/errors/RequestFailedError.ts";
 import { UserId } from "../modules/user/domain/UserId.ts";
 
 export type ChatAction = Extract<
@@ -130,10 +133,28 @@ export class ChatSession {
     await this.loadPage(roomId, history.getMessages().oldest()?.getId().toPrimitive() ?? null);
   }
 
-  send(roomId: string, text: string, file?: Blob): Promise<boolean> {
+  /** False when the message can't be written (refused text or file); one not delivered yet waits in the outbox. */
+  async send(roomId: string, text: string, file?: Blob): Promise<boolean> {
     // Recipients drop my typing indicator when the message arrives: typing again must notify again.
     this.typingSentAt.delete(roomId);
-    return this.attempt(() => this.modules.chat.sendMessage({ roomId, text, file }), "message.send");
+    let draft: MessageDraft;
+    try {
+      draft = await this.modules.chat.draftMessage({ roomId, text, file });
+    } catch (error) {
+      this.fail(error, "message.send");
+      return false;
+    }
+    void this.deliver(draft);
+    return true;
+  }
+
+  retrySend(clientMessageId: string): void {
+    const outgoing = this.snapshot.chat.findOutgoing(ClientMessageId.fromPrimitive(clientMessageId));
+    if (outgoing?.hasFailed()) void this.deliver(outgoing.getDraft());
+  }
+
+  discardSend(clientMessageId: string): void {
+    this.update(this.snapshot.chat.messageDiscarded(ClientMessageId.fromPrimitive(clientMessageId)));
   }
 
   edit(messageId: string, text: string): Promise<boolean> {
@@ -195,10 +216,25 @@ export class ChatSession {
 
   private async resync(): Promise<void> {
     await this.reloadRooms();
+    // Before the newest page, so a message stored just before the drop isn't shown twice.
+    await Promise.all(this.snapshot.chat.undelivered().map((outgoing) => this.deliver(outgoing.getDraft())));
     const openRoomId = this.snapshot.chat.getOpenRoomId();
     if (!openRoomId || !this.snapshot.chat.historyOf(openRoomId)) return;
     await this.loadPage(openRoomId.toPrimitive(), null, { isNewest: true });
     this.markRead(openRoomId.toPrimitive());
+  }
+
+  private async deliver(draft: MessageDraft): Promise<void> {
+    const id = draft.getClientMessageId();
+    this.update(this.snapshot.chat.messageSending(draft));
+    try {
+      await this.modules.chat.deliverMessage(draft.toPrimitive());
+      this.update(this.snapshot.chat.messageSent(id));
+    } catch (error) {
+      this.update(this.snapshot.chat.messageNotSent(id));
+      // A lost connection shows on the message itself and is retried on reconnect; anything else is explained.
+      if (!(error instanceof RequestFailedError && error.isConnectionLost())) this.fail(error, "message.send");
+    }
   }
 
   private markRead(roomId: string): void {

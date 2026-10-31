@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { faker } from "@faker-js/faker";
 import { ChatSession, type ChatModules } from "../../src/hooks/ChatSession.ts";
+import { MessageId } from "../../src/modules/message/domain/MessageId.ts";
 import type { MessageList } from "../../src/modules/message/domain/MessageList.ts";
 import * as MessageMother from "../../src/modules/message/test/helpers/MessageMother.ts";
 import type { ChatEvent } from "../../src/modules/realtime/domain/ChatEvent.ts";
@@ -12,6 +13,8 @@ import * as RoomMother from "../../src/modules/room/test/helpers/RoomMother.ts";
 import { RequestFailedError } from "../../src/modules/shared/domain/errors/RequestFailedError.ts";
 import { UserId } from "../../src/modules/user/domain/UserId.ts";
 import { MessageList as Messages } from "../../src/modules/message/domain/MessageList.ts";
+import type { MessageDraftPrimitive } from "../../src/modules/message/domain/MessageDraft.ts";
+import { EmptyMessageError } from "../../src/modules/message/domain/errors/EmptyMessageError.ts";
 
 const ME = faker.string.uuid();
 const OTHER = faker.string.uuid();
@@ -35,7 +38,9 @@ const setUp = (rooms = [RoomMother.listed({ unreadCount: 0 })]) => {
       followRooms: mock((roomIds: readonly string[]) => void roomIds),
       watchChatEvents: mock((listener: (event: ChatEvent) => void) => ((onEvent = listener), () => (onEvent = () => {}))),
       watchConnection: mock((listener: (status: ConnectionStatus) => void) => ((onStatus = listener), () => (onStatus = () => {}))),
-      sendMessage: mock(async () => {
+      draftMessage: mock(async ({ roomId, text }: { roomId: string; text: string }) => MessageMother.draft({ roomId, body: text })),
+      deliverMessage: mock(async (draft: MessageDraftPrimitive): Promise<MessageId> => {
+        void draft;
         throw new RequestFailedError(RequestFailedError.DISCONNECTED, null);
       }),
       editMessage: mock(async () => {}),
@@ -119,15 +124,59 @@ describe("ChatSession", () => {
     expect(chat().historyOf(RoomId.fromPrimitive(roomId))?.getMessages().count()).toBe(3);
   });
 
-  it("surfaces a failed send with the action and its cause, until dismissed", async () => {
-    const { session } = setUp();
+  it("keeps a message the channel lost and sends it again, with the same client id, on reconnect", async () => {
+    const room = RoomMother.listed();
+    const roomId = room.getId();
+    const { session, modules, status, chat } = setUp([room]);
 
-    expect(await session.send(faker.string.uuid(), "hola")).toBe(false);
-    expect(session.getSnapshot().failure).toMatchObject({ action: "message.send" });
-    expect((session.getSnapshot().failure?.cause as RequestFailedError).code).toBe(RequestFailedError.DISCONNECTED);
+    expect(await session.send(roomId.toPrimitive(), "hola")).toBe(true);
+    await flush();
+    const lost = chat().outgoingIn(roomId);
+    modules.chat.deliverMessage.mockImplementationOnce(async () => MessageId.fromPrimitive(MessageMother.nextId()));
+    status("open");
+    await flush();
 
-    session.dismissFailure();
+    expect(lost.map((message) => message.hasFailed())).toEqual([true]);
     expect(session.getSnapshot().failure).toBeNull();
+    const [first, retried] = modules.chat.deliverMessage.mock.calls.map(([draft]) => draft.clientMessageId);
+    expect(retried).toBe(first!);
+    expect(chat().outgoingIn(roomId).isEmpty()).toBe(true);
+  });
+
+  it("retries or discards an unsent message at the user's request", async () => {
+    const roomId = RoomMother.listed().getId();
+    const { session, modules, chat } = setUp();
+    await session.send(roomId.toPrimitive(), "uno");
+    await session.send(roomId.toPrimitive(), "dos");
+    await flush();
+    const [first, second] = chat().outgoingIn(roomId).map((message) => message.getId().toPrimitive());
+
+    session.retrySend(first!);
+    session.discardSend(second!);
+    await flush();
+
+    expect(modules.chat.deliverMessage.mock.calls.map(([draft]) => draft.clientMessageId)).toEqual([first!, second!, first!]);
+    expect(chat().outgoingIn(roomId).map((message) => message.getId().toPrimitive())).toEqual([first!]);
+  });
+
+  it("explains a message that can't be written, or that the backend refused, until dismissed", async () => {
+    const roomId = faker.string.uuid();
+    const { session, modules, chat } = setUp();
+    modules.chat.draftMessage.mockImplementationOnce(async () => {
+      throw new EmptyMessageError();
+    });
+
+    expect(await session.send(roomId, "  ")).toBe(false);
+    expect(session.getSnapshot().failure).toMatchObject({ action: "message.send" });
+    session.dismissFailure();
+
+    modules.chat.deliverMessage.mockImplementationOnce(async () => {
+      throw new RequestFailedError("room.not_member", null);
+    });
+    await session.send(roomId, "hola");
+    await flush();
+    expect((session.getSnapshot().failure?.cause as RequestFailedError).code).toBe("room.not_member");
+    expect(chat().outgoingIn(RoomId.fromPrimitive(roomId)).map((message) => message.hasFailed())).toEqual([true]);
   });
 
   it("times out someone else's typing and throttles the user's own notices", async () => {

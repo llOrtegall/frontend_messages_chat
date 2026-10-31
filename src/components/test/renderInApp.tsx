@@ -31,6 +31,8 @@ export const fakeChatSession = (chat: Chat, failure: ChatSnapshot["failure"] = n
     selectRoom: mock(async () => {}),
     loadOlder: mock(async () => {}),
     send: mock(async () => true),
+    retrySend: mock(() => {}),
+    discardSend: mock(() => {}),
     edit: mock(async () => true),
     deleteMessage: mock(async () => true),
     addMember: mock(async () => true),

@@ -19,4 +19,9 @@ export class RequestFailedError extends DomainError {
   ) {
     super(detail);
   }
+
+  /** The request never got an answer: trying again later may work. */
+  isConnectionLost(): boolean {
+    return [RequestFailedError.NETWORK, RequestFailedError.DISCONNECTED, RequestFailedError.TIMEOUT].includes(this.code);
+  }
 }

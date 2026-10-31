@@ -5,12 +5,13 @@ import { apiHttp } from "../../shared/application/factory.ts";
 import type { ApiHttp } from "../../shared/infrastructure/ApiHttp.ts";
 import { connectRealtime } from "./connectRealtime.ts";
 import { deleteMessage } from "./deleteMessage.ts";
+import { deliverMessage } from "./deliverMessage.ts";
 import { disconnectRealtime } from "./disconnectRealtime.ts";
+import { draftMessage } from "./draftMessage.ts";
 import { editMessage } from "./editMessage.ts";
 import { followRooms } from "./followRooms.ts";
 import { markRoomRead } from "./markRoomRead.ts";
 import { notifyTyping } from "./notifyTyping.ts";
-import { sendMessage } from "./sendMessage.ts";
 import { watchChatEvents } from "./watchChatEvents.ts";
 import { watchConnection } from "./watchConnection.ts";
 
@@ -24,7 +25,8 @@ export const chatModule = (http: ApiHttp, apiUrl: string, bucketFetch?: BucketFe
     followRooms: followRooms({ realtimeRepository }),
     watchChatEvents: watchChatEvents({ realtimeRepository }),
     watchConnection: watchConnection({ realtimeRepository }),
-    sendMessage: sendMessage({ realtimeRepository, attachmentRepository }),
+    draftMessage: draftMessage({ attachmentRepository }),
+    deliverMessage: deliverMessage({ realtimeRepository }),
     editMessage: editMessage({ realtimeRepository }),
     deleteMessage: deleteMessage({ realtimeRepository }),
     markRoomRead: markRoomRead({ realtimeRepository }),

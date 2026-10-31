@@ -1,6 +1,10 @@
+import type { ClientMessageId } from "../../message/domain/ClientMessageId.ts";
 import type { Message } from "../../message/domain/Message.ts";
+import type { MessageDraft } from "../../message/domain/MessageDraft.ts";
 import type { MessageId } from "../../message/domain/MessageId.ts";
 import type { MessageList } from "../../message/domain/MessageList.ts";
+import { OutgoingMessage } from "../../message/domain/OutgoingMessage.ts";
+import { OutgoingMessageList } from "../../message/domain/OutgoingMessageList.ts";
 import type { ChatEvent } from "../../realtime/domain/ChatEvent.ts";
 import type { ConnectionStatus } from "../../realtime/domain/ConnectionStatus.ts";
 import type { ListedRoom } from "../../room/domain/ListedRoom.ts";
@@ -25,6 +29,7 @@ interface ChatAttributes {
   readonly countedUnread: ReadonlyMap<string, MessageId>;
   /** Last message acknowledged with a read mark per room, so the same one isn't sent twice. */
   readonly readMarks: ReadonlyMap<string, MessageId>;
+  readonly outbox: OutgoingMessageList;
 }
 
 export interface ChatTransition {
@@ -59,6 +64,7 @@ export class Chat {
       presence: new Map(),
       countedUnread: new Map(),
       readMarks: new Map(),
+      outbox: OutgoingMessageList.empty(),
     });
   }
 
@@ -103,6 +109,36 @@ export class Chat {
 
   roomIds(): RoomId[] {
     return this.attributes.rooms?.roomIds() ?? [];
+  }
+
+  outgoingIn(roomId: RoomId): OutgoingMessageList {
+    return this.attributes.outbox.inRoom(roomId);
+  }
+
+  findOutgoing(id: ClientMessageId): OutgoingMessage | null {
+    return this.attributes.outbox.find(id);
+  }
+
+  /** What to send again once the channel is back: the backend stores a repeated client id only once. */
+  undelivered(): OutgoingMessageList {
+    return this.attributes.outbox.failed();
+  }
+
+  messageSending(draft: MessageDraft): Chat {
+    return this.with({ outbox: this.attributes.outbox.upsert(OutgoingMessage.sending(draft)) });
+  }
+
+  /** Its message.created event puts it in the room's history. */
+  messageSent(id: ClientMessageId): Chat {
+    return this.with({ outbox: this.attributes.outbox.remove(id) });
+  }
+
+  messageNotSent(id: ClientMessageId): Chat {
+    return this.with({ outbox: this.attributes.outbox.update(id, (message) => message.failed()) });
+  }
+
+  messageDiscarded(id: ClientMessageId): Chat {
+    return this.with({ outbox: this.attributes.outbox.remove(id) });
   }
 
   connectionChanged(connection: ConnectionStatus): Chat {
@@ -244,6 +280,7 @@ export class Chat {
       rooms: this.attributes.rooms?.remove(roomId) ?? null,
       histories: withoutEntry(this.attributes.histories, key(roomId)),
       countedUnread: withoutEntry(this.attributes.countedUnread, key(roomId)),
+      outbox: this.attributes.outbox.withoutRoom(roomId),
       ...(wasOpen && { openRoomId: null, openRoom: null }),
     });
   }

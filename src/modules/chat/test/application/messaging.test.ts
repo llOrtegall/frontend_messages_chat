@@ -7,50 +7,61 @@ import { EmptyMessageError } from "../../../message/domain/errors/EmptyMessageEr
 import { InvalidMessageError } from "../../../message/domain/errors/InvalidMessageError.ts";
 import * as MessageMother from "../../../message/test/helpers/MessageMother.ts";
 import { deleteMessage } from "../../application/deleteMessage.ts";
+import { deliverMessage } from "../../application/deliverMessage.ts";
+import { draftMessage } from "../../application/draftMessage.ts";
 import { editMessage } from "../../application/editMessage.ts";
 import { followRooms } from "../../application/followRooms.ts";
 import { markRoomRead } from "../../application/markRoomRead.ts";
 import { notifyTyping } from "../../application/notifyTyping.ts";
-import { sendMessage } from "../../application/sendMessage.ts";
 import * as RealtimeRepositoryMother from "../helpers/RealtimeRepositoryMother.ts";
 
 const roomId = faker.string.uuid();
 
-describe("sendMessage", () => {
+describe("draftMessage", () => {
   const setUp = () => {
     const key = AttachmentMother.key();
-    const realtimeRepository = RealtimeRepositoryMother.create();
     const attachmentRepository = AttachmentRepositoryMother.create({ upload: mock(async () => key) });
-    return { key, realtimeRepository, attachmentRepository, send: sendMessage({ realtimeRepository, attachmentRepository }) };
+    return { key, attachmentRepository, draft: draftMessage({ attachmentRepository }) };
   };
 
-  it("sends the trimmed text with a fresh client id", async () => {
-    const { realtimeRepository, send } = setUp();
+  it("drafts the trimmed text with a fresh client id", async () => {
+    const { draft } = setUp();
 
-    await send({ roomId, text: "  hola  " });
+    const [first, second] = [await draft({ roomId, text: "  hola  " }), await draft({ roomId, text: "hola" })];
 
-    const [draft] = realtimeRepository.send.mock.calls[0]!;
-    expect(draft.toPrimitive()).toMatchObject({ roomId, body: "hola", attachmentKey: null });
+    expect(first.toPrimitive()).toMatchObject({ roomId, body: "hola", attachmentKey: null });
+    expect(first.equals(second)).toBe(false);
   });
 
-  it("uploads the file first and sends it alone or with a caption", async () => {
-    const { key, realtimeRepository, attachmentRepository, send } = setUp();
+  it("uploads the file first and drafts it alone or with a caption", async () => {
+    const { key, attachmentRepository, draft } = setUp();
 
-    await send({ roomId, text: "", file: AttachmentMother.content() });
+    const drafted = await draft({ roomId, text: "", file: AttachmentMother.content() });
 
     expect(attachmentRepository.upload).toHaveBeenCalledTimes(1);
-    expect(realtimeRepository.send.mock.calls[0]![0].toPrimitive()).toMatchObject({ body: "", attachmentKey: key.toPrimitive() });
+    expect(drafted.toPrimitive()).toMatchObject({ body: "", attachmentKey: key.toPrimitive() });
   });
 
-  it("sends nothing for an empty message, a refused file or an over-long text (uploading nothing for it)", async () => {
-    const { realtimeRepository, attachmentRepository, send } = setUp();
+  it("refuses an empty message, a refused file or an over-long text, uploading nothing for it", async () => {
+    const { attachmentRepository, draft } = setUp();
 
-    await expect(send({ roomId, text: "   " })).rejects.toThrow(EmptyMessageError);
-    await expect(send({ roomId, text: "", file: AttachmentMother.content("image/svg+xml") })).rejects.toThrow(AttachmentTypeNotAllowedError);
-    await expect(send({ roomId, text: "x".repeat(4097), file: AttachmentMother.content() })).rejects.toThrow(InvalidMessageError);
+    await expect(draft({ roomId, text: "   " })).rejects.toThrow(EmptyMessageError);
+    await expect(draft({ roomId, text: "", file: AttachmentMother.content("image/svg+xml") })).rejects.toThrow(AttachmentTypeNotAllowedError);
+    await expect(draft({ roomId, text: "x".repeat(4097), file: AttachmentMother.content() })).rejects.toThrow(InvalidMessageError);
 
-    expect(realtimeRepository.send).not.toHaveBeenCalled();
     expect(attachmentRepository.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe("deliverMessage", () => {
+  it("sends the draft as it was written, so a retry carries the same client id", async () => {
+    const realtimeRepository = RealtimeRepositoryMother.create();
+    const draft = MessageMother.draftPrimitive({ roomId });
+
+    await deliverMessage({ realtimeRepository })(draft);
+    await deliverMessage({ realtimeRepository })(draft);
+
+    expect(realtimeRepository.send.mock.calls.map(([sent]) => sent.toPrimitive())).toEqual([draft, draft]);
   });
 });
 

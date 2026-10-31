@@ -42,9 +42,9 @@ function client(email: string) {
     fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Origin: ORIGIN } });
   const session = sessionModule(http, bucketFetch);
   const users = userModule(http);
-  const chat = (userId: string) =>
-    new ChatSession(userId, { chat: chatModule(http, API, bucketFetch), rooms: roomModule(http), messages: messageModule(http) });
-  return { email, http, session, users, chat };
+  const realtime = () => chatModule(http, API, bucketFetch);
+  const chat = (userId: string) => new ChatSession(userId, { chat: realtime(), rooms: roomModule(http), messages: messageModule(http) });
+  return { email, http, session, users, chat, realtime };
 }
 
 let failures = 0;
@@ -130,6 +130,20 @@ const att = messagesIn(cChat, roomId).find((message) => message.attachmentMeta)!
 const pub = await fetch(att.url);
 check(pub.ok && pub.headers.get("content-type") === "image/png" && att.sizeBytes === png.size, "public URL serves the image");
 check(!(await aChat.send(roomId, "", new Blob(["<svg/>"], { type: "image/svg+xml" }))), "SVG is refused");
+
+// A send retried after a dropped connection carries the same client id: stored and announced once.
+const aliceRealtime = alice.realtime();
+let realtimeOpen = false;
+aliceRealtime.watchConnection((status) => (realtimeOpen = status === "open"));
+aliceRealtime.connectRealtime();
+await until(() => realtimeOpen, "second connection for the retry check");
+const retried = (await aliceRealtime.draftMessage({ roomId, text: "reintento (e2e)" })).toPrimitive();
+const [firstId, retriedId] = [await aliceRealtime.deliverMessage(retried), await aliceRealtime.deliverMessage(retried)];
+check(firstId.equals(retriedId), "a retried send with the same client id returns the stored message");
+await until(() => messagesIn(cChat, roomId).some((message) => message.body === "reintento (e2e)"), "recipient gets the retried message");
+await Bun.sleep(200);
+check(messagesIn(cChat, roomId).filter((message) => message.body === "reintento (e2e)").length === 1, "the retry is not shown twice");
+aliceRealtime.disconnectRealtime();
 
 await aChat.send(roomId, "solo Alice edita esto (e2e)");
 await until(() => messagesIn(cChat, roomId).some((message) => message.body === "solo Alice edita esto (e2e)"), "recipient gets a message to try editing");

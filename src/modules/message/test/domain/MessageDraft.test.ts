@@ -27,6 +27,15 @@ describe("MessageDraft", () => {
     expect(MessageDraft.fromPrimitive(draft.toPrimitive()).toPrimitive()).toEqual(draft.toPrimitive());
   });
 
+  it("tells its client id, text and whether it carries a file", () => {
+    const withFile = MessageDraft.write(roomId, MessageBody.create("mira"), AttachmentKey.create("uploads/u/1.png"));
+
+    expect(withFile.getClientMessageId().toPrimitive()).toBe(withFile.toPrimitive().clientMessageId);
+    expect(withFile.getBody().toPrimitive()).toBe("mira");
+    expect(withFile.hasAttachment()).toBe(true);
+    expect(MessageDraft.write(roomId, MessageBody.create("hola"), null).hasAttachment()).toBe(false);
+  });
+
   it("rejects a client id that is not a uuid", () => {
     expect(() => ClientMessageId.create("c1")).toThrow(InvalidMessageError);
   });

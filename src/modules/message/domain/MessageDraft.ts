@@ -51,6 +51,18 @@ export class MessageDraft {
     return this.roomId;
   }
 
+  getClientMessageId(): ClientMessageId {
+    return this.clientMessageId;
+  }
+
+  getBody(): MessageBody {
+    return this.body;
+  }
+
+  hasAttachment(): boolean {
+    return this.attachmentKey !== null;
+  }
+
   equals(other: MessageDraft): boolean {
     return this.clientMessageId.equals(other.clientMessageId);
   }
