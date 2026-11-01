@@ -24,8 +24,9 @@ export function ChatLayout() {
   const [showNew, setShowNew] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
-  const hasUnread = chat.getRooms()?.hasUnread() ?? false;
-  useUnreadTitle(chat.getRooms()?.totalUnread() ?? 0);
+  const now = new Date();
+  const hasUnread = chat.getRooms()?.hasUnreadAt(now) ?? false;
+  useUnreadTitle(chat.getRooms()?.totalUnreadAt(now) ?? 0);
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100">

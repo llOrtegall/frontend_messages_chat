@@ -37,6 +37,10 @@ export class RoomMemberList {
     return this.members.find((member) => member.is(userId)) ?? null;
   }
 
+  firstOtherThan(userId: UserId): RoomMember | null {
+    return this.members.find((member) => !member.is(userId)) ?? null;
+  }
+
   roleOf(userId: UserId): MemberRole | null {
     return this.find(userId)?.getRole() ?? null;
   }

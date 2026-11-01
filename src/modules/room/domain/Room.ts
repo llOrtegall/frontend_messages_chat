@@ -1,3 +1,4 @@
+import type { MessageId } from "../../message/domain/MessageId.ts";
 import { UserId, type UserIdPrimitive } from "../../user/domain/UserId.ts";
 import type { DisplayName } from "../../user/domain/DisplayName.ts";
 import { RoomId, type RoomIdPrimitive } from "./RoomId.ts";
@@ -98,6 +99,18 @@ export class Room {
   canLeave(userId: UserId): boolean {
     const role = this.roleOf(userId);
     return this.isGroup() && role !== null && !role.isOwner();
+  }
+
+  /** Marks how far a member read; nothing changes for someone who isn't a member. */
+  withReadMark(userId: UserId, messageId: MessageId): Room {
+    const member = this.attributes.members.find(userId);
+    return member ? this.withMember(member.readUpTo(messageId)) : this;
+  }
+
+  /** In a direct room, the other member; null in groups or once they left. */
+  peerOf(me: UserId): RoomMember | null {
+    if (this.isGroup()) return null;
+    return this.attributes.members.firstOtherThan(me);
   }
 
   /** The name to show next to someone's messages; null once they left the room. */

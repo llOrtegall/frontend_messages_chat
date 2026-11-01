@@ -41,6 +41,8 @@ export const fakeChatSession = (chat: Chat, failure: ChatSnapshot["failure"] = n
     leaveGroup: mock(async () => true),
     changeMemberRole: mock(async () => true),
     deleteRoom: mock(async () => true),
+    muteRoom: mock(async () => true),
+    unmuteRoom: mock(async () => true),
     openDirect: mock(async () => ""),
     createGroup: mock(async () => ""),
     notifyTyping: mock(() => {}),

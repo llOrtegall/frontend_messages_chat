@@ -6,6 +6,7 @@ import { Room } from "../../../room/domain/Room.ts";
 import { RoomMember } from "../../../room/domain/RoomMember.ts";
 import * as RoomMother from "../../../room/test/helpers/RoomMother.ts";
 import { UserId } from "../../../user/domain/UserId.ts";
+import { Chat } from "../../domain/Chat.ts";
 import * as ChatMother from "../helpers/ChatMother.ts";
 
 const { me, other } = ChatMother;
@@ -199,6 +200,31 @@ describe("Chat", () => {
       expect(joined.getOpenRoom()?.getMembers().count()).toBe(2);
       expect(left.getOpenRoom()?.getMembers().count()).toBe(1);
       expect(chat.apply({ type: "member.left", roomId: busy, userId: UserId.fromPrimitive(crypto.randomUUID()) }).chat.getOpenRoom()).toBeNull();
+    });
+  });
+
+  describe("Muting and seen marks", () => {
+    it("records a room's mute, and its end", () => {
+      const { chat, quiet } = ChatMother.withRooms();
+      const until = new Date(Date.now() + 60_000);
+
+      const muted = chat.roomMuted(quiet, until);
+
+      expect(muted.getRooms()?.find(quiet)?.isMutedAt(new Date())).toBe(true);
+      expect(muted.roomMuted(quiet, null).getRooms()?.find(quiet)?.isMutedAt(new Date())).toBe(false);
+    });
+
+    it("shows which of the user's messages the other member of a direct room has seen", () => {
+      const { room, me: mine, other: peer } = RoomMother.direct();
+      const roomId = room.getId();
+      const [first, reply, second] = [ChatMother.messageIn(roomId, mine), ChatMother.messageIn(roomId, peer), ChatMother.messageIn(roomId, mine)];
+      const chat = Chat.start(mine).connectionChanged("open").opened(roomId).openRoomLoaded(room).olderPageLoaded(roomId, ChatMother.page(first, reply, second), 50);
+
+      const { chat: seen } = chat.apply({ type: "message.read", roomId, userId: peer, messageId: reply.getId() });
+
+      expect(chat.lastSeenMessageIn(roomId)).toBeNull();
+      expect(seen.lastSeenMessageIn(roomId)?.equals(first.getId())).toBe(true);
+      expect(seen.apply({ type: "message.read", roomId, userId: peer, messageId: second.getId() }).chat.lastSeenMessageIn(roomId)?.equals(second.getId())).toBe(true);
     });
   });
 

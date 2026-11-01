@@ -1,7 +1,11 @@
 import { describe, expect, it, mock } from "bun:test";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Chat } from "../modules/chat/domain/Chat.ts";
+import { MessageList } from "../modules/message/domain/MessageList.ts";
 import * as MessageMother from "../modules/message/test/helpers/MessageMother.ts";
+import { ListedRoomList } from "../modules/room/domain/ListedRoomList.ts";
+import * as RoomMother from "../modules/room/test/helpers/RoomMother.ts";
 import * as CurrentUserMother from "../modules/session/test/helpers/CurrentUserMother.ts";
 import { RequestFailedError } from "../modules/shared/domain/errors/RequestFailedError.ts";
 import { ChatView } from "./ChatView.tsx";
@@ -57,6 +61,32 @@ describe("ChatView", () => {
 
     expect(chatSession.retrySend).toHaveBeenCalledWith(lost.getClientMessageId().toPrimitive());
     expect(chatSession.discardSend).toHaveBeenCalledWith(lost.getClientMessageId().toPrimitive());
+  });
+
+  it("mutes the room for the chosen time and offers to turn it back on", async () => {
+    const { room, chatSession } = renderOpenGroup();
+
+    await userEvent.click(screen.getByRole("button", { name: "Silenciar conversación" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Silenciar 8 horas" }));
+
+    expect(chatSession.muteRoom).toHaveBeenCalledWith(room.getId().toPrimitive(), "eight_hours");
+    expect(screen.queryByRole("menuitem", { name: "Reactivar avisos" })).toBeNull();
+  });
+
+  it("marks the newest own message the other member has seen in a direct room", () => {
+    const { room, me, other } = RoomMother.direct();
+    const roomId = room.getId();
+    const [seen, unseen] = [MessageMother.create({ roomId: roomId.toPrimitive(), senderId: me.toPrimitive(), body: "visto" }), MessageMother.create({ roomId: roomId.toPrimitive(), senderId: me.toPrimitive(), body: "aún no" })];
+    const chat = Chat.start(me)
+      .connectionChanged("open")
+      .roomsLoaded(ListedRoomList.create([RoomMother.listed({ id: roomId.toPrimitive(), kind: "dm", name: null, unreadCount: 0 })]))
+      .opened(roomId)
+      .openRoomLoaded(room.withReadMark(other, seen.getId()))
+      .olderPageLoaded(roomId, MessageList.create([seen, unseen]), 50);
+    renderInApp(<ChatView roomId={roomId.toPrimitive()} />, { session: fakeSession({}, CurrentUserMother.create({ id: me.toPrimitive() })), chatSession: fakeChatSession(chat) });
+
+    expect(screen.getAllByText(/· Visto/)).toHaveLength(1);
+    expect(screen.getByText("visto").closest(".group")?.textContent).toContain("Visto");
   });
 
   it("offers no edit on someone else's message", () => {

@@ -57,6 +57,17 @@ export class RoomMember {
     return this.attributes.avatarUrl;
   }
 
+  getLastReadMessageId(): MessageId | null {
+    return this.attributes.lastReadMessageId;
+  }
+
+  /** The member read up to that message; their mark never moves back. */
+  readUpTo(messageId: MessageId): RoomMember {
+    const current = this.attributes.lastReadMessageId;
+    if (current && !messageId.isAfter(current)) return this;
+    return RoomMember.create({ ...this.attributes, lastReadMessageId: messageId });
+  }
+
   getRole(): MemberRole {
     return this.attributes.role;
   }

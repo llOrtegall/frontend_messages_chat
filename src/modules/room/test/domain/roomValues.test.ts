@@ -6,6 +6,7 @@ import { InvalidRoomError } from "../../domain/errors/InvalidRoomError.ts";
 import { ListedRoom } from "../../domain/ListedRoom.ts";
 import { ListedRoomList } from "../../domain/ListedRoomList.ts";
 import { MemberRole } from "../../domain/MemberRole.ts";
+import { MuteDuration } from "../../domain/MuteDuration.ts";
 import { RoomKind } from "../../domain/RoomKind.ts";
 import { RoomMemberList } from "../../domain/RoomMemberList.ts";
 import { RoomName } from "../../domain/RoomName.ts";
@@ -86,5 +87,22 @@ describe("ListedRoomList", () => {
     const room = RoomMother.listed();
 
     expect(() => ListedRoomList.create([room, room])).toThrow(InvalidRoomError);
+  });
+});
+
+describe("MuteDuration", () => {
+  const now = new Date("2026-11-14T12:00:00.000Z");
+
+  it("ends that long after now, and tells an indefinite mute apart", () => {
+    expect(MuteDuration.create("hour").endsAfter(now).toISOString()).toBe("2026-11-14T13:00:00.000Z");
+    expect(MuteDuration.create("week").endsAfter(now).toISOString()).toBe("2026-11-21T12:00:00.000Z");
+    expect(MuteDuration.isIndefinite(MuteDuration.create("until_unmuted").endsAfter(now), now)).toBe(true);
+    expect(MuteDuration.isIndefinite(MuteDuration.create("week").endsAfter(now), now)).toBe(false);
+  });
+
+  it("offers every duration once and rejects an unknown one", () => {
+    expect(MuteDuration.all().map((duration) => duration.toPrimitive())).toEqual(["hour", "eight_hours", "week", "until_unmuted"]);
+    expect(MuteDuration.fromPrimitive("hour").equals(MuteDuration.create("hour"))).toBe(true);
+    expect(() => MuteDuration.create("forever")).toThrow(InvalidRoomError);
   });
 });

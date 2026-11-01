@@ -49,12 +49,13 @@ export class ListedRoomList {
     return this.rooms.map((room) => room.getId());
   }
 
-  totalUnread(): number {
-    return this.rooms.reduce((total, room) => total + room.getUnreadCount(), 0);
+  /** What the tab title counts: muted rooms stay quiet. */
+  totalUnreadAt(now: Date): number {
+    return this.rooms.reduce((total, room) => total + room.noticeableUnreadAt(now), 0);
   }
 
-  hasUnread(): boolean {
-    return this.rooms.some((room) => room.getUnreadCount() > 0);
+  hasUnreadAt(now: Date): boolean {
+    return this.totalUnreadAt(now) > 0;
   }
 
   isEmpty(): boolean {

@@ -51,6 +51,8 @@ const setUp = (rooms = [RoomMother.listed({ unreadCount: 0 })]) => {
     rooms: {
       listRooms: mock(async () => roomList),
       findRoom: mock(async (roomId: string) => Room.fromPrimitive(RoomMother.createPrimitive({ id: roomId }))),
+      muteRoom: mock(async ({ duration }: { roomId: string; duration: string }) => (duration === "hour" ? new Date(Date.now() + 3_600_000) : null)),
+      unmuteRoom: mock(async (roomId: string) => void roomId),
     },
     messages: { listMessages: mock(async () => pages.shift() ?? Messages.empty()) },
   };
@@ -131,6 +133,21 @@ describe("ChatSession", () => {
     expect(marksWhileHidden).toBe(0);
     expect(modules.chat.markRoomRead).toHaveBeenCalledTimes(1);
     expect(chat().getRooms()?.find(room.getId())?.getUnreadCount()).toBe(0);
+  });
+
+  it("mutes and unmutes a room for the user", async () => {
+    const room = RoomMother.listed({ unreadCount: 2 });
+    const roomId = room.getId().toPrimitive();
+    const { session, status, chat } = setUp([room]);
+    status("open");
+    await flush();
+
+    expect(await session.muteRoom(roomId, "hour")).toBe(true);
+    const whileMuted = chat().getRooms()?.find(room.getId())?.isMutedAt(new Date());
+    await session.unmuteRoom(roomId);
+
+    expect(whileMuted).toBe(true);
+    expect(chat().getRooms()?.find(room.getId())?.isMutedAt(new Date())).toBe(false);
   });
 
   it("pages back until the start of the room", async () => {

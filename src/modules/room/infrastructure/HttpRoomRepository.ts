@@ -1,4 +1,4 @@
-import { MemberResponseSchema, RoomDetailResponseSchema, RoomListResponseSchema, RoomResponseSchema } from "../../../contracts/index.ts";
+import { MemberResponseSchema, MuteRoomResponseSchema, RoomDetailResponseSchema, RoomListResponseSchema, RoomResponseSchema } from "../../../contracts/index.ts";
 import type { ApiHttp } from "../../shared/infrastructure/ApiHttp.ts";
 import type { UserId } from "../../user/domain/UserId.ts";
 import { ListedRoom } from "../domain/ListedRoom.ts";
@@ -57,4 +57,11 @@ export class HttpRoomRepository implements RoomRepository {
     });
     return RoomMember.fromPrimitive(member);
   }
+  async mute(id: RoomId, until: Date | null): Promise<Date | null> {
+    const { mutedUntil } = await this.http.request("PUT", `${roomPath(id)}/mute`, MuteRoomResponseSchema, {
+      body: { until: until?.toISOString() ?? null },
+    });
+    return mutedUntil === null ? null : new Date(mutedUntil);
+  }
+
 }

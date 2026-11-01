@@ -23,6 +23,8 @@ export type ChatAction = Extract<
   | "member.change_role"
   | "group.leave"
   | "room.delete"
+  | "room.mute"
+  | "room.unmute"
 >;
 
 export interface ChatFailure {
@@ -118,12 +120,7 @@ export class ChatSession {
     this.update(this.snapshot.chat.opened(id));
     if (id === null) return;
 
-    const [room] = await Promise.all([
-      // A room that can't be read any more is closed by its room.removed event.
-      this.modules.rooms.findRoom(id.toPrimitive()).catch(() => null),
-      this.snapshot.chat.historyOf(id) ? Promise.resolve() : this.loadPage(id.toPrimitive(), null),
-    ]);
-    if (room) this.update(this.snapshot.chat.openRoomLoaded(room));
+    await Promise.all([this.loadOpenRoom(id), this.snapshot.chat.historyOf(id) ? Promise.resolve() : this.loadPage(id.toPrimitive(), null)]);
     this.markRead(id.toPrimitive());
   }
 
@@ -186,6 +183,20 @@ export class ChatSession {
     return this.attempt(() => this.modules.rooms.deleteRoom(roomId), "room.delete");
   }
 
+  muteRoom(roomId: string, duration: string): Promise<boolean> {
+    return this.attempt(async () => {
+      const until = await this.modules.rooms.muteRoom({ roomId, duration });
+      this.update(this.snapshot.chat.roomMuted(RoomId.fromPrimitive(roomId), until));
+    }, "room.mute");
+  }
+
+  unmuteRoom(roomId: string): Promise<boolean> {
+    return this.attempt(async () => {
+      await this.modules.rooms.unmuteRoom(roomId);
+      this.update(this.snapshot.chat.roomMuted(RoomId.fromPrimitive(roomId), null));
+    }, "room.unmute");
+  }
+
   /** Opens (creating if needed) the direct room with a user. Throws on failure. */
   async openDirect(userId: string): Promise<string> {
     const room = await this.modules.rooms.openDirectRoom(userId);
@@ -226,8 +237,15 @@ export class ChatSession {
     await Promise.all(this.snapshot.chat.undelivered().map((outgoing) => this.deliver(outgoing.getDraft())));
     const openRoomId = this.snapshot.chat.getOpenRoomId();
     if (!openRoomId || !this.snapshot.chat.historyOf(openRoomId)) return;
-    await this.loadPage(openRoomId.toPrimitive(), null, { isNewest: true });
+    // Members and read marks may have changed while offline.
+    await Promise.all([this.loadOpenRoom(openRoomId), this.loadPage(openRoomId.toPrimitive(), null, { isNewest: true })]);
     this.markRead(openRoomId.toPrimitive());
+  }
+
+  private async loadOpenRoom(id: RoomId): Promise<void> {
+    // A room that can't be read any more is closed by its room.removed event.
+    const room = await this.modules.rooms.findRoom(id.toPrimitive()).catch(() => null);
+    if (room) this.update(this.snapshot.chat.openRoomLoaded(room));
   }
 
   private async deliver(draft: MessageDraft): Promise<void> {

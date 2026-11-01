@@ -34,6 +34,21 @@ describe("HttpRoomRepository", () => {
     expect((await repository.list()).toPrimitive()).toEqual([listed]);
   });
 
+  it("mutes through PUT with the end date, and unmutes with null", async () => {
+    const until = new Date("2026-12-01T00:00:00.000Z");
+    const { repository, seen } = respond((_request, body) => Response.json({ mutedUntil: (body as { until: string | null }).until }));
+    const id = RoomId.fromPrimitive(RoomMother.listedPrimitive().id);
+
+    const muted = await repository.mute(id, until);
+    const unmuted = await repository.mute(id, null);
+
+    expect(seen.map(({ method, path, body }) => ({ method, path, body }))).toEqual([
+      { method: "PUT", path: `/api/v1/rooms/${id.toPrimitive()}/mute`, body: { until: until.toISOString() } },
+      { method: "PUT", path: `/api/v1/rooms/${id.toPrimitive()}/mute`, body: { until: null } },
+    ]);
+    expect([muted?.toISOString(), unmuted]).toEqual([until.toISOString(), null]);
+  });
+
   it("joins a created group with nothing unread yet", async () => {
     const room = RoomMother.newRoomPrimitive();
     const { seen, repository } = respond(() => Response.json({ room }, { status: 201 }));

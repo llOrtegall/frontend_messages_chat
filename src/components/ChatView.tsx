@@ -10,6 +10,7 @@ import type { UserId } from "../modules/user/domain/UserId.ts";
 import { GroupMembersPanel } from "./GroupMembersPanel.tsx";
 import { MessageComposer } from "./MessageComposer.tsx";
 import { MessageItem } from "./MessageItem.tsx";
+import { MuteMenu } from "./MuteMenu.tsx";
 import { OutgoingMessageItem } from "./OutgoingMessageItem.tsx";
 import { roomTitle } from "./roomTitle.ts";
 
@@ -31,6 +32,7 @@ export function ChatView({ roomId }: { roomId: string }) {
   const connection = chat.getConnection();
   const isGroup = openRoom?.isGroup() ?? listed?.isGroup() ?? false;
   const senderName = (userId: UserId) => openRoom?.nameOf(userId)?.toPrimitive() ?? "Antiguo miembro";
+  const seenId = chat.lastSeenMessageIn(id);
   const lastId = messages.at(-1)?.getId().toPrimitive();
   const outgoingCount = outgoing.count();
 
@@ -62,6 +64,13 @@ export function ChatView({ roomId }: { roomId: string }) {
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${connection === "open" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
             {CONNECTION_LABEL[connection]}
           </span>
+          {listed && (
+            <MuteMenu
+              mutedUntil={listed.muteEndAt(new Date())}
+              onMute={(duration) => void session.muteRoom(roomId, duration)}
+              onUnmute={() => void session.unmuteRoom(roomId)}
+            />
+          )}
           {openRoom && me && openRoom.canBeDeletedBy(me) && (
             <button onClick={() => void deleteRoom()} title="Eliminar conversación" aria-label="Eliminar conversación" className="text-slate-400 hover:text-red-400 transition text-sm px-1.5 py-0.5 rounded hover:bg-slate-800">
               🗑
@@ -94,6 +103,7 @@ export function ChatView({ roomId }: { roomId: string }) {
                   author={isOwn ? "Tú" : isGroup ? senderName(sender) : (listed?.title() ?? "Contacto")}
                   senderLabel={isGroup && !isOwn && startsRun ? senderName(sender) : null}
                   canEdit={me !== null && message.canBeEditedBy(me)}
+                  isSeen={seenId?.equals(message.getId()) ?? false}
                   onEdit={(text) => session.edit(message.getId().toPrimitive(), text)}
                   onDelete={() => void session.deleteMessage(message.getId().toPrimitive())}
                 />

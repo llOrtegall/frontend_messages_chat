@@ -180,3 +180,35 @@ test("security: end another device's session and change the password", async ({ 
   const relogin = await ana.page.request.post(`${API_URL}/api/v1/auth/login`, { headers: origin, data: { email: ana.email, password: "brand-new-secret" } });
   expect(relogin.status()).toBe(200);
 });
+
+test("direct rooms show what was seen, and a muted room stays quiet", async ({ users }) => {
+  const [ana, ben] = await users("Ana", "Ben");
+  await openChat(ana);
+  await openChat(ben);
+  await openDm(ana, ben);
+  await send(ana, "¿lo ves?");
+  await expect(messages(ana).getByText("· Visto")).toHaveCount(0);
+
+  await ben.page.getByRole("button", { name: new RegExp(`${ana.name}.*1 sin leer`) }).click();
+  await expect(messages(ben).getByText("¿lo ves?")).toBeVisible();
+  await expect(messages(ana).getByText(/· Visto/)).toBeVisible();
+
+  await ben.page.getByRole("button", { name: "Silenciar conversación" }).click();
+  await ben.page.getByRole("menuitem", { name: "Silenciar 1 hora" }).click();
+  await expect(ben.page.getByRole("button", { name: /Silenciada hasta/ })).toBeVisible();
+  await ben.page.getByRole("button", { name: "Cerrar conversación" }).click();
+
+  await send(ana, "otro más");
+  const room = ben.page.getByRole("button", { name: new RegExp(`${ana.name}.*silenciada`) });
+  await expect(room).toBeVisible();
+  await ben.page.waitForTimeout(500);
+  await expect(ben.page.getByText(/sin leer/)).toHaveCount(0);
+  await expect(ben.page).toHaveTitle("Chat App");
+
+  await ben.page.reload();
+  await expect(ben.page.getByRole("button", { name: new RegExp(`${ana.name}.*silenciada`) })).toBeVisible();
+  await room.click();
+  await ben.page.getByRole("button", { name: /Silenciada hasta/ }).click();
+  await ben.page.getByRole("menuitem", { name: "Reactivar avisos" }).click();
+  await expect(ben.page.getByRole("button", { name: "Silenciar conversación" })).toBeVisible();
+});

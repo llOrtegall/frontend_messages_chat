@@ -19,4 +19,6 @@ export interface RoomRepository {
   /** Removing yourself is leaving. */
   removeMember(id: RoomId, userId: UserId): Promise<void>;
   changeRole(id: RoomId, userId: UserId, role: MemberRole): Promise<RoomMember>;
+  /** Only for the requesting user; null unmutes. Answers until when it is muted. */
+  mute(id: RoomId, until: Date | null): Promise<Date | null>;
 }

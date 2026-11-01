@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { UserId } from "../../../user/domain/UserId.ts";
 import * as UserIdMother from "../../../user/test/helpers/UserIdMother.ts";
 import { InvalidMessageError } from "../../domain/errors/InvalidMessageError.ts";
 import { Message } from "../../domain/Message.ts";
@@ -76,5 +77,17 @@ describe("MessageList", () => {
 
     expect(MessageList.create([kept, removed]).remove(removed.getId()).equals(MessageList.create([kept]))).toBe(true);
     expect(MessageList.empty().isEmpty()).toBe(true);
+  });
+});
+
+describe("MessageList read positions", () => {
+  it("finds the newest message someone sent up to a given one", () => {
+    const [me, other] = [crypto.randomUUID(), crypto.randomUUID()];
+    const [mine, theirs, myLater] = [MessageMother.create({ senderId: me }), MessageMother.create({ senderId: other }), MessageMother.create({ senderId: me })];
+    const list = MessageList.create([mine, theirs, myLater]);
+
+    expect(list.newestFromUpTo(UserId.fromPrimitive(me), theirs.getId())?.equals(mine)).toBe(true);
+    expect(list.newestFromUpTo(UserId.fromPrimitive(me), myLater.getId())?.equals(myLater)).toBe(true);
+    expect(list.newestFromUpTo(UserId.fromPrimitive(other), mine.getId())).toBeNull();
   });
 });

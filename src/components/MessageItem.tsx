@@ -12,11 +12,13 @@ interface MessageItemProps {
   /** Shown above the bubble in groups, when the previous message is from someone else. */
   readonly senderLabel: string | null;
   readonly canEdit: boolean;
+  /** The other member of a direct room has read up to this message. */
+  readonly isSeen: boolean;
   readonly onEdit: (text: string) => Promise<boolean>;
   readonly onDelete: () => void;
 }
 
-export const MessageItem = ({ message, isOwn, author, senderLabel, canEdit, onEdit, onDelete }: MessageItemProps) => {
+export const MessageItem = ({ message, isOwn, author, senderLabel, canEdit, isSeen, onEdit, onDelete }: MessageItemProps) => {
   const [editing, setEditing] = useState<string | null>(null);
   const body = message.getBody().toPrimitive();
   const attachment = message.getAttachment();
@@ -65,6 +67,7 @@ export const MessageItem = ({ message, isOwn, author, senderLabel, canEdit, onEd
         <span className="text-[10px] text-slate-400 mt-0.5 px-1">
           {formatTime(message.getCreatedAt())}
           {message.wasEdited() && " · editado"}
+          {isSeen && " · Visto"}
         </span>
       </div>
     </div>

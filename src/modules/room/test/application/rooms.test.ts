@@ -6,7 +6,9 @@ import { createGroupRoom } from "../../application/createGroupRoom.ts";
 import { deleteRoom } from "../../application/deleteRoom.ts";
 import { findRoom } from "../../application/findRoom.ts";
 import { openDirectRoom } from "../../application/openDirectRoom.ts";
+import { muteRoom } from "../../application/muteRoom.ts";
 import { removeMember } from "../../application/removeMember.ts";
+import { unmuteRoom } from "../../application/unmuteRoom.ts";
 import { InvalidRoomError } from "../../domain/errors/InvalidRoomError.ts";
 import { InvalidUserIdError } from "../../../user/domain/errors/InvalidUserIdError.ts";
 import * as RoomRepositoryMother from "../helpers/RoomRepositoryMother.ts";
@@ -59,5 +61,29 @@ describe("room use cases", () => {
     expect(roomRepository.createGroup).not.toHaveBeenCalled();
     expect(roomRepository.changeRole).not.toHaveBeenCalled();
     expect(roomRepository.addMember).not.toHaveBeenCalled();
+  });
+});
+
+describe("muting a room", () => {
+  it("silences it from now for the chosen duration, and turns the silence off", async () => {
+    const roomRepository = RoomRepositoryMother.create();
+    const before = Date.now();
+
+    const until = await muteRoom({ roomRepository })({ roomId, duration: "hour" });
+    await unmuteRoom({ roomRepository })(roomId);
+
+    const [[mutedId, mutedUntil], [unmutedId, cleared]] = roomRepository.mute.mock.calls;
+    expect([mutedId.toPrimitive(), unmutedId.toPrimitive()]).toEqual([roomId, roomId]);
+    expect(mutedUntil!.getTime() - before).toBeGreaterThanOrEqual(60 * 60 * 1000);
+    expect(mutedUntil!.getTime() - Date.now()).toBeLessThanOrEqual(60 * 60 * 1000);
+    expect(until).toEqual(mutedUntil);
+    expect(cleared).toBeNull();
+  });
+
+  it("refuses a duration it doesn't offer, without asking the backend", async () => {
+    const roomRepository = RoomRepositoryMother.create();
+
+    await expect(muteRoom({ roomRepository })({ roomId, duration: "forever" })).rejects.toThrow(InvalidRoomError);
+    expect(roomRepository.mute).not.toHaveBeenCalled();
   });
 });

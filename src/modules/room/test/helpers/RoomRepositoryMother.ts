@@ -16,5 +16,6 @@ export const create = (overrides: Partial<RoomRepository> = {}): Mocked<RoomRepo
     addMember: mock(async () => RoomMember.fromPrimitive(RoomMother.memberPrimitive())),
     removeMember: mock(async () => {}),
     changeRole: mock(async () => RoomMember.fromPrimitive(RoomMother.memberPrimitive({ role: "admin" }))),
+    mute: mock(async (_id, until: Date | null) => until),
     ...overrides,
   }) as Mocked<RoomRepository>;

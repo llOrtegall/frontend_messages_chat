@@ -7,8 +7,10 @@ import { createGroupRoom } from "./createGroupRoom.ts";
 import { deleteRoom } from "./deleteRoom.ts";
 import { findRoom } from "./findRoom.ts";
 import { listRooms } from "./listRooms.ts";
+import { muteRoom } from "./muteRoom.ts";
 import { openDirectRoom } from "./openDirectRoom.ts";
 import { removeMember } from "./removeMember.ts";
+import { unmuteRoom } from "./unmuteRoom.ts";
 
 export const roomModule = (http: ApiHttp) => {
   const roomRepository = new HttpRoomRepository(http);
@@ -22,6 +24,8 @@ export const roomModule = (http: ApiHttp) => {
     addMember: addMember({ roomRepository }),
     removeMember: removeMember({ roomRepository }),
     changeMemberRole: changeMemberRole({ roomRepository }),
+    muteRoom: muteRoom({ roomRepository }),
+    unmuteRoom: unmuteRoom({ roomRepository }),
   };
 };
 

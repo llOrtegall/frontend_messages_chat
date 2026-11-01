@@ -64,6 +64,8 @@ const ACTION_FAILURES = {
   "room.open_direct": "No se pudo abrir la conversación.",
   "room.create": "No se pudo crear la conversación.",
   "room.delete": "No se pudo eliminar la conversación.",
+  "room.mute": "No se pudo silenciar la conversación.",
+  "room.unmute": "No se pudo reactivar la conversación.",
   "member.add": "No se pudo añadir al miembro.",
   "member.remove": "No se pudo quitar al miembro.",
   "member.change_role": "No se pudo cambiar el rol.",

@@ -167,6 +167,19 @@ export class Chat {
     return { chat: shown.withRoomRead(openRoomId), effects: [{ type: "markRead", roomId: openRoomId }] };
   }
 
+  /** The user silenced the room (until a date) or turned the silence off (null). */
+  roomMuted(roomId: RoomId, until: Date | null): Chat {
+    return this.with({ rooms: this.attributes.rooms?.update(roomId, (room) => room.withMutedUntil(until)) ?? null });
+  }
+
+  /** In a direct room, the newest of the user's messages the other member has read. */
+  lastSeenMessageIn(roomId: RoomId): MessageId | null {
+    const peer = this.attributes.openRoom?.getId().equals(roomId) ? this.attributes.openRoom.peerOf(this.attributes.me) : null;
+    const readUpTo = peer?.getLastReadMessageId() ?? null;
+    if (!readUpTo) return null;
+    return this.historyOf(roomId)?.getMessages().newestFromUpTo(this.attributes.me, readUpTo)?.getId() ?? null;
+  }
+
   roomJoined(room: ListedRoom): Chat {
     return this.with({ rooms: (this.attributes.rooms ?? ListedRoomList.empty()).upsert(room) });
   }
@@ -245,7 +258,11 @@ export class Chat {
       case "presence.changed":
         return this.unchanged(this.with({ presence: withEntry(this.attributes.presence, key(event.userId), event.isOnline) }));
       case "message.read":
-        return this.unchanged(event.userId.equals(this.attributes.me) ? this.withRoomRead(event.roomId) : this);
+        return this.unchanged(
+          event.userId.equals(this.attributes.me)
+            ? this.withRoomRead(event.roomId)
+            : this.withOpenRoom(event.roomId, (room) => room.withReadMark(event.userId, event.messageId)),
+        );
       case "room.added":
         // A direct room is titled after the other member, whom only the room list carries.
         return { chat: this.roomJoined(event.room), effects: event.room.isDirect() ? [{ type: "reloadRooms" }] : [] };

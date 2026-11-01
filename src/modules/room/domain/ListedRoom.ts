@@ -96,6 +96,25 @@ export class ListedRoom {
     return this.attributes.lastMessageAt;
   }
 
+  /** A past end means the mute is over. */
+  isMutedAt(now: Date): boolean {
+    return this.attributes.mutedUntil !== null && this.attributes.mutedUntil > now;
+  }
+
+  /** When the mute ends, or null when the room isn't muted at `now`. */
+  muteEndAt(now: Date): Date | null {
+    return this.isMutedAt(now) ? this.attributes.mutedUntil : null;
+  }
+
+  /** Unread messages that call for attention: none while muted. */
+  noticeableUnreadAt(now: Date): number {
+    return this.isMutedAt(now) ? 0 : this.attributes.unreadCount;
+  }
+
+  withMutedUntil(mutedUntil: Date | null): ListedRoom {
+    return ListedRoom.create({ ...this.attributes, mutedUntil });
+  }
+
   withUnreadCount(unreadCount: number): ListedRoom {
     return ListedRoom.create({ ...this.attributes, unreadCount });
   }

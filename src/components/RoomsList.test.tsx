@@ -18,6 +18,15 @@ describe("RoomsList", () => {
     expect(screen.getByText("Cargando…")).toBeTruthy();
   });
 
+  it("hides the unread count of a muted room and says it is muted", () => {
+    const muted = RoomMother.listed({ name: "Ruido", unreadCount: 4, mutedUntil: new Date(Date.now() + 3_600_000).toISOString() });
+    renderInApp(<RoomsList onNewConversation={() => {}} />, { chatSession: fakeChatSession(Chat.start(me).roomsLoaded(ListedRoomList.create([muted]))) });
+
+    const room = screen.getByRole("button", { name: /Ruido/ });
+    expect(room.textContent).toContain("silenciada");
+    expect(room.textContent).not.toContain("sin leer");
+  });
+
   it("lists the rooms with their unread count and opens one on click", async () => {
     const group = RoomMother.listed({ name: "Equipo", unreadCount: 3 });
     const direct = RoomMother.listed({ kind: "dm", name: null, unreadCount: 0, peer: { id: faker.string.uuid(), displayName: "Bea", avatarUrl: null } });

@@ -12,7 +12,9 @@ interface RoomItemProps {
 }
 
 export const RoomItem = ({ room, isOpen, onOpen }: RoomItemProps) => {
-  const unread = room.getUnreadCount();
+  const now = new Date();
+  const unread = room.noticeableUnreadAt(now);
+  const isMuted = room.isMutedAt(now);
   const lastMessageAt = room.getLastMessageAt();
   return (
     <button
@@ -25,6 +27,12 @@ export const RoomItem = ({ room, isOpen, onOpen }: RoomItemProps) => {
           {room.isDirect() ? "DM" : "G"}
         </span>
         <span className="font-medium text-sm truncate flex-1">{roomTitle(room)}</span>
+        {isMuted && (
+          <span className="shrink-0 text-xs" title="Silenciada">
+            <span aria-hidden>🔕</span>
+            <span className="sr-only">, silenciada</span>
+          </span>
+        )}
         {unread > 0 && !isOpen && (
           <span className="shrink-0 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
             <span aria-hidden>{unread > MAX_SHOWN_UNREAD ? `${MAX_SHOWN_UNREAD}+` : unread}</span>
