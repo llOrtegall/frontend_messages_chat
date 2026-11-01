@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, messages, openChat, openDm, send, test } from "./fixtures.ts";
+import { API_URL, expect, messages, openChat, openDm, send, test } from "./fixtures.ts";
 
 // 1x1 PNG
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
@@ -150,4 +150,33 @@ test("groups: sender names, roles and leaving", async ({ users }) => {
   await benPanel.getByRole("button", { name: "Salir del grupo" }).click();
   await expect(ben.page.getByRole("button", { name: /Equipo E2E/ })).toHaveCount(0);
   await expect(panel.getByRole("listitem")).toHaveCount(1);
+});
+
+test("security: end another device's session and change the password", async ({ users, browser, baseURL }) => {
+  const [ana] = await users("Ana");
+  const origin = { Origin: baseURL! };
+  const laptop = await browser.newContext({ userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0" });
+  const login = await laptop.request.post(`${API_URL}/api/v1/auth/login`, { headers: origin, data: { email: ana.email, password: ana.password } });
+  expect(login.status()).toBe(200);
+
+  await openChat(ana);
+  await ana.page.getByRole("button", { name: "Seguridad" }).click();
+  const dialog = ana.page.getByRole("dialog", { name: "Seguridad" });
+  await expect(dialog.getByText("Esta sesión")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cerrar la sesión de Firefox en Linux" }).click();
+  await expect(dialog.getByRole("button", { name: /Cerrar la sesión de/ })).toHaveCount(0);
+  expect((await laptop.request.post(`${API_URL}/api/v1/auth/refresh`, { headers: origin })).status()).toBe(401);
+  await laptop.close();
+
+  await dialog.getByLabel("Contraseña actual").fill("not-my-password");
+  await dialog.getByLabel(/^Nueva contraseña/).fill("brand-new-secret");
+  await dialog.getByLabel("Repite la nueva contraseña").fill("brand-new-secret");
+  await dialog.getByRole("button", { name: "Cambiar contraseña" }).click();
+  await expect(dialog.getByText("La contraseña actual no es correcta.")).toBeVisible();
+
+  await dialog.getByLabel("Contraseña actual").fill(ana.password);
+  await dialog.getByRole("button", { name: "Cambiar contraseña" }).click();
+  await expect(dialog.getByText("Contraseña cambiada. Se han cerrado tus otras sesiones.")).toBeVisible();
+  const relogin = await ana.page.request.post(`${API_URL}/api/v1/auth/login`, { headers: origin, data: { email: ana.email, password: "brand-new-secret" } });
+  expect(relogin.status()).toBe(200);
 });

@@ -19,6 +19,7 @@ export const fakeSession = (overrides: Partial<Session> = {}, user: CurrentUser 
     resetPassword: mock(async () => {}),
     requestEmailVerification: mock(async () => {}),
     requestPasswordReset: mock(async () => {}),
+    changePassword: mock(async () => {}),
     ...overrides,
   }) as Session;
 

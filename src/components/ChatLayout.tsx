@@ -10,6 +10,7 @@ import { VerifyEmailBanner } from "./VerifyEmailBanner.tsx";
 import { ProfileDialog } from "./ProfileDialog.tsx";
 import { NewConversationModal } from "./NewConversationModal.tsx";
 import { RoomsList } from "./RoomsList.tsx";
+import { SecurityDialog } from "./SecurityDialog.tsx";
 import { UsersList } from "./UsersList.tsx";
 
 type Tab = "chats" | "users";
@@ -22,6 +23,7 @@ export function ChatLayout() {
   const [tab, setTab] = useState<Tab>("chats");
   const [showNew, setShowNew] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
   const hasUnread = chat.getRooms()?.hasUnread() ?? false;
   useUnreadTitle(chat.getRooms()?.totalUnread() ?? 0);
 
@@ -65,6 +67,12 @@ export function ChatLayout() {
             </button>
           )}
           <button
+            onClick={() => setShowSecurity(true)}
+            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-lg transition text-sm"
+          >
+            Seguridad
+          </button>
+          <button
             onClick={() => void signOut()}
             className="w-full bg-slate-800 hover:bg-red-900/60 hover:text-red-400 text-slate-400 font-medium py-2 rounded-lg transition text-sm"
           >
@@ -96,6 +104,7 @@ export function ChatLayout() {
 
       {showNew && <NewConversationModal onClose={() => setShowNew(false)} />}
       {showProfile && <ProfileDialog onClose={() => setShowProfile(false)} />}
+      {showSecurity && <SecurityDialog onClose={() => setShowSecurity(false)} />}
     </div>
   );
 }

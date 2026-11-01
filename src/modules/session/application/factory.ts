@@ -3,7 +3,10 @@ import { apiHttp } from "../../shared/application/factory.ts";
 import type { ApiHttp } from "../../shared/infrastructure/ApiHttp.ts";
 import { HttpAccountRepository } from "../infrastructure/HttpAccountRepository.ts";
 import { HttpSessionRepository } from "../infrastructure/HttpSessionRepository.ts";
+import { changePassword } from "./changePassword.ts";
 import { confirmEmailVerification } from "./confirmEmailVerification.ts";
+import { endSession } from "./endSession.ts";
+import { listActiveSessions } from "./listActiveSessions.ts";
 import { requestEmailVerification } from "./requestEmailVerification.ts";
 import { requestPasswordReset } from "./requestPasswordReset.ts";
 import { resetPassword } from "./resetPassword.ts";
@@ -30,6 +33,9 @@ export const sessionModule = (http: ApiHttp, bucketFetch?: BucketFetch) => {
     requestEmailVerification: requestEmailVerification({ accountRepository }),
     requestPasswordReset: requestPasswordReset({ accountRepository }),
     resetPassword: resetPassword({ accountRepository }),
+    changePassword: changePassword({ accountRepository }),
+    listActiveSessions: listActiveSessions({ accountRepository }),
+    endSession: endSession({ accountRepository }),
   };
 };
 

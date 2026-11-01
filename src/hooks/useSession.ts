@@ -74,6 +74,7 @@ export const useSessionState = () => {
       resetPassword,
       requestEmailVerification: session.requestEmailVerification,
       requestPasswordReset: session.requestPasswordReset,
+      changePassword: session.changePassword,
     }),
     [state, signIn, signUp, signOut, updateProfile, confirmEmailVerification, resetPassword],
   );

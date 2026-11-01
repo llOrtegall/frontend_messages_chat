@@ -1,7 +1,9 @@
-import { UserResponseSchema } from "../../../contracts/index.ts";
+import { SessionListResponseSchema, UserResponseSchema } from "../../../contracts/index.ts";
 import type { ApiHttp } from "../../shared/infrastructure/ApiHttp.ts";
 import type { UserEmail } from "../../user/domain/UserEmail.ts";
 import type { AccountRepository } from "../domain/AccountRepository.ts";
+import type { ActiveSessionId } from "../domain/ActiveSessionId.ts";
+import { ActiveSessionList } from "../domain/ActiveSessionList.ts";
 import { CurrentUser } from "../domain/CurrentUser.ts";
 import type { EmailToken } from "../domain/EmailToken.ts";
 import type { Password } from "../domain/Password.ts";
@@ -36,5 +38,18 @@ export class HttpAccountRepository implements AccountRepository {
       body: { token: token.toPrimitive(), newPassword: password.toPrimitive() },
     });
     this.http.setAccessToken(null);
+  }
+
+  async changePassword(currentPassword: string, newPassword: Password): Promise<void> {
+    await this.http.request("POST", "/api/v1/auth/password", null, { body: { currentPassword, newPassword: newPassword.toPrimitive() } });
+  }
+
+  async listSessions(): Promise<ActiveSessionList> {
+    const { sessions } = await this.http.request("GET", "/api/v1/auth/sessions", SessionListResponseSchema);
+    return ActiveSessionList.fromPrimitive(sessions);
+  }
+
+  async endSession(id: ActiveSessionId): Promise<void> {
+    await this.http.request("DELETE", `/api/v1/auth/sessions/${encodeURIComponent(id.toPrimitive())}`, null);
   }
 }
