@@ -12,3 +12,4 @@ almacenamiento de adjuntos) están en `backend_messages_chat/docs/adr/`.
 | [0005](0005-clean-architecture-modules.md) | Clean Architecture por módulos de negocio; agregado `Chat` y `ChatSession` |
 | [0006](0006-tolerant-contract-reads.md) | Lectura tolerante de los contratos (campos nuevos no rompen al frontend) |
 | [0007](0007-testing.md) | Tests: dominio/casos de uso/infra sin DOM, componentes con happy-dom, smoke y Playwright |
+| [0008](0008-outbox-and-idempotent-retry.md) | Mensajes pendientes en el agregado y reintento con el mismo `clientMessageId` |

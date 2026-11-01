@@ -87,6 +87,14 @@ src/
 - **Tiempo real**: el WebSocket se abre con un ticket de un solo uso (`POST /ws/ticket`), nunca con el JWT en la URL.
   Reconecta con backoff y jitter, re-suscribe las rooms y, tras cada (re)conexión, recarga rooms y la conversación
   abierta porque los eventos perdidos no se reenvían.
+- **Envío sin pérdidas**: un mensaje no confirmado queda como "Enviando… / No enviado" y se reenvía al reconectar con el
+  mismo `clientMessageId` (el backend lo guarda una vez); se puede reintentar o descartar ([ADR 0008](docs/adr/0008-outbox-and-idempotent-retry.md)).
+- **Leído y avisos**: la conversación abierta solo se marca leída con la pestaña visible (`visibilitychange`); el título
+  de la pestaña lleva el total de no leídos. Una conversación silenciada (1 h, 8 h, 1 semana o hasta reactivarla, que el
+  backend recibe como una fecha a 100 años) no muestra badge ni cuenta en el título. En los DMs, "Visto" marca el último
+  mensaje propio que el otro ha leído.
+- **Seguridad**: el diálogo "Seguridad" cambia la contraseña (cierra las demás sesiones) y lista las sesiones activas con
+  "Cerrar" para las de otros dispositivos.
 - **Contratos**: respuestas REST y frames WS se validan con Zod tolerando campos nuevos ([ADR 0006](docs/adr/0006-tolerant-contract-reads.md)); un frame inválido se descarta.
 - **Rutas**: la protección es en cliente (`SessionGate`): la cookie pertenece al origen del API y el servidor de Next no
   la ve. El API autoriza cada petición igualmente.
